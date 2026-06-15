@@ -476,7 +476,24 @@ class EncoderEncoderPCN:
                 layer.update_b()
                 gc.collect()
 
-    
+    def update_states_wts_b_relaxed(self, num_weight_steps:int, num_relax_steps:int):
+        # Predictive-coding training schedule. With inputs clamped, first relax the
+        # latent STATES toward equilibrium under fixed weights, THEN take a single
+        # weight/bias step from those relaxed states. This only re-sequences the
+        # existing per-layer update methods; it does not change any per-layer
+        # update_state / update_wts / update_b math.
+        for weight_step in range(num_weight_steps):
+            # RELAX: iterate ONLY state updates, weights fixed
+            for _ in range(num_relax_steps):
+                for layer in self.trainable_layers:
+                    layer.update_state()
+            # LEARN: one weight + bias step using the relaxed states
+            for layer in self.trainable_layers:
+                layer.update_wts()
+                layer.update_b()
+            gc.collect()
+
+
     def train_step(self, num_steps:int, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, mask:tf.Tensor=None):
         self.img_input.is_clamped = True
         self.txt_input.is_clamped = True
