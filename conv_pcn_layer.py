@@ -14,8 +14,8 @@ class Conv2DPCNLayer:
     learning_rate:float
 
     def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(False, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = False
         self.num_units = num_units
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
@@ -28,8 +28,8 @@ class Conv2DPCNLayer:
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
-        self.wts = tf.Variable(tf.random.normal((*self.kernel_size, input_shape[-1], self.num_units), 
-                                                stddev=self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1]))), trainable=False)
+        self.wts = tf.Variable(tf.random.normal((*self.kernel_size, input_shape[-1], self.num_units), dtype=tf.float32,
+                            stddev=tf.cast(self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1])), tf.float32)), trainable=False)
     
     def predict_prev(self):
         return tf.nn.conv2d_transpose(self.state, self.wts, padding='VALID', strides=1, output_shape=(self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2]))
@@ -63,26 +63,28 @@ class Conv2DPCNLayer:
                 if layer.activation == 'relu':
                     state = tf.nn.relu(state)
                     pred_state = tf.nn.relu(pred_state)
-                average_d_pred += layer.pred_loss_d_input(self.predict_next())
+                average_d_pred += tf.cast(layer.pred_loss_d_input(self.predict_next()), tf.float32)
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2*num_next_layers)))
+                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
             # pred prev layer & pred from prev layer
             if self.prev_layer is not None:
                 d_pred = tf.zeros_like(self.state)
                 d_state = tf.zeros_like(self.state)
                 layer = self.prev_layer
                 if self.activation == 'relu':
+                    multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
-                        -(1+int(layer.is_clamped))*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
+                        -multiplier*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
                         self.wts, strides=1, padding="VALID")
                 else:
+                    multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
-                        -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()),
+                        -multiplier*(layer.predict_next() - self.predict_prev()),
                         self.wts, strides=1, padding="VALID")
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
-                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2))
+                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2.))
 
     # 1/2*(gelu(conv(prev.state, self.wts))-self.state)^2
     # => (gelu(conv(prev.state, self.wts))-self.state) * d_gelu(conv(prev.state, self.wts)) * conv2dbackprop
@@ -107,7 +109,8 @@ class Conv2DPCNLayer:
                 else:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
             if not self.is_clamped or not self.prev_layer.is_clamped:
-                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
+                denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
+                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/denom)
 
     def update_b(self):
         pass # there is no bias
@@ -125,7 +128,7 @@ class Conv2DPCNLayer:
 
         return tf.nn.conv2d(x, self.wts, padding='VALID', strides=1)
 
-    def __call__(self, x : tf.Tensor):
+    def __call__(self, x : tf.Tensor, set_state:bool = False):
         net_in = self.net_in(x)
 
         if self.activation == 'relu':
@@ -133,8 +136,11 @@ class Conv2DPCNLayer:
         else:
             net_act = net_in
 
-        if self.state is None:
-            self.state = tf.Variable(net_act, trainable=False)
+        if set_state:
+            if self.state is None:
+                self.state = tf.Variable(net_act, trainable=False)
+            else:
+                self.state.assign(net_act)
             self.output_shape = net_act.shape
 
         return net_act
@@ -147,12 +153,6 @@ class Conv2DPCNLayer:
         else:
             return 1
 
-    def clamp(self, set_clamp:bool):
-        self.is_clamped.assign(set_clamp)
-
-    def set_fix_wts_b(self, fix_wts_b:bool):
-        self.fix_wts_b.assign(fix_wts_b)
-
 
 class MaxPool2DPCNLayer:
     is_clamped : tf.Variable # bool
@@ -162,8 +162,8 @@ class MaxPool2DPCNLayer:
     kernel_size : tuple[int, int]
     output_shape : tuple
     def __init__(self, kernel_size: tuple[int, int],  prev_layer:object, next_layers:list=None):
-        self.is_clamped = tf.Variable(True, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = True
+        self.fix_wts_b = True
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
         self.kernel_size = kernel_size

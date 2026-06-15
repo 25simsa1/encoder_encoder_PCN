@@ -15,8 +15,8 @@ class DensePCNLayer:
     share_wts_layer : object
     share_state_layer : object
     def __init__(self, num_units:int, learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None, share_state_layer:object=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(False, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = False
         self.num_units = num_units
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
@@ -30,9 +30,9 @@ class DensePCNLayer:
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
-        self.wts = tf.Variable(tf.random.normal((input_shape[-1], self.num_units), 
-                                                stddev=self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1]))), trainable=False)
-        self.b = tf.Variable(tf.zeros(self.num_units), trainable=False)
+        self.wts = tf.Variable(tf.random.normal((input_shape[-1], self.num_units), dtype = tf.float32, 
+                            stddev=tf.cast(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])), tf.float32)), trainable=False)
+        self.b = tf.Variable(tf.zeros(self.num_units, dtype = tf.float32), trainable=False)
 
 
     def predict_prev(self):
@@ -75,7 +75,7 @@ class DensePCNLayer:
                 average_d_state += (state - pred_state)
                 
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2*num_next_layers)))
+                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
 
             # pred prev layer & pred from prev layer
             if self.prev_layer is not None:
@@ -88,7 +88,7 @@ class DensePCNLayer:
                     d_pred += -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()) @ self.wts
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
-                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2))
+                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2.))
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
     # x.t @ ((state - act(x@wts+b))*act'(x@wts+b))
@@ -117,7 +117,7 @@ class DensePCNLayer:
                     x = tf.linalg.matrix_transpose(self.prev_layer.predict_next() - self.predict_prev()) @ -(self.predict_next()-self.b)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
             if not self.is_clamped or not self.prev_layer.is_clamped:
-                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
+                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
@@ -146,7 +146,7 @@ class DensePCNLayer:
                     x = tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.wts, axis=0)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped or not self.prev_layer.is_clamped:
-                self.b.assign_sub(self.learning_rate*(d_state+d_pred)/(int(not self.is_clamped)+int(not self.prev_layer.is_clamped)))
+                self.b.assign_sub(self.learning_rate*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
 
 
     def init_state(self):
@@ -161,18 +161,21 @@ class DensePCNLayer:
             self.init_params(x.shape)
         return x @ self.wts + self.b
 
-    def __call__(self, x : tf.Tensor):
+    def __call__(self, x : tf.Tensor, set_state:bool = False):
         net_in = self.net_in(x)
         if self.activation == 'relu':
             net_act = tf.nn.relu(net_in)
         else:
             net_act = net_in
 
-        if self.state is None:
+        if set_state:
             if self.share_state_layer is not None:
                 self.state = self.share_state_layer.state
             else:
-                self.state = tf.Variable(net_act, trainable=False)
+                if self.state is None:
+                    self.state = tf.Variable(net_act, trainable=False)
+                else:
+                    self.state.assign(net_act)
             self.output_shape = net_act.shape
         return net_act
 
@@ -181,11 +184,5 @@ class DensePCNLayer:
             return tf.sqrt(2.)
         else:
             return 1
-
-    def clamp(self, set_clamp:bool):
-        self.is_clamped.assign(set_clamp)
-
-    def set_fix_wts_b(self, fix_wts_b:bool):
-        self.fix_wts_b.assign(fix_wts_b)
 
 

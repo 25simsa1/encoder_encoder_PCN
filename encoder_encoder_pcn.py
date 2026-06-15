@@ -2,6 +2,8 @@ import tensorflow as tf
 from conv_pcn_layer import Conv2DPCNLayer, MaxPool2DPCNLayer
 from dense_pcn_layer import DensePCNLayer
 from transformer_pcn_layer import TransformerPCNLayer, PositionalEncodingLayer, AttentionPCNLayer, AddNormalizePCNLayer
+from typing import Literal
+import gc
 class InputPCNLayer:
     is_clamped : tf.Variable # bool
     fix_wts_b : tf.Variable # bool
@@ -10,8 +12,8 @@ class InputPCNLayer:
     state : tf.Variable # tf.Tensor
     learning_rate:float
     def __init__(self, learning_rate: float, next_layers:list=None):
-        self.is_clamped = tf.Variable(True, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = True
+        self.fix_wts_b = True
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
         self.state = None
@@ -35,7 +37,7 @@ class InputPCNLayer:
                 average_d_pred += layer.pred_loss_d_input(self.predict_next())
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2*num_next_layers)))
+                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
 
     def update_wts(self):
         pass # there is no wts
@@ -50,7 +52,10 @@ class InputPCNLayer:
         self.state = None
 
     def set_state(self, x:tf.Tensor):
-        self.state = tf.Variable(x, trainable=False)
+        if self.state is None:
+            self.state = tf.Variable(x, trainable=False)
+        else:
+            self.state.assign(x)
         self.output_shape = x.shape
 
 class TransposePCNLayer:
@@ -59,16 +64,23 @@ class TransposePCNLayer:
     prev_layer : DensePCNLayer
     next_layers: list
     output_shape : tuple
+    activation : str
     def __init__(self, prev_layer:object, next_layers:list=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = True
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
+        self.activation = 'linear'
 
     def __call__(self, x:tf.Tensor):
         self.output_shape = (*x.shape[:-2], x.shape[-1], x.shape[-2])
-        return tf.transpose(x, perm = list(range(tf.rank(x)-2))+[tf.rank(x)-1, tf.rank(x)-2])
+        # tf.rank(x) is a symbolic tensor in graph mode — avoid Python iteration.
+        r = tf.rank(x)
+        prefix = tf.range(0, r - 2, dtype=tf.int32)
+        last = tf.stack([r - 1, r - 2])
+        perm = tf.concat([prefix, last], axis=0)
+        return tf.transpose(x, perm=perm)
     
     def predict_next(self):
         return self(self.prev_layer.predict_next())
@@ -77,7 +89,7 @@ class TransposePCNLayer:
     def predict_prev(self):
         return self(self.next_layers[0].predict_prev())
     
-    def pred_loss_d_input(self):
+    def pred_loss_d_input(self, x:tf.Tensor):
         return 1.
 
 class FlattenPCNLayer:
@@ -87,13 +99,15 @@ class FlattenPCNLayer:
     next_layers: list
     output_shape : tuple
     input_shape : tuple
+    activation : str
     def __init__(self, prev_layer:object, next_layers:list=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = True
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
         self.input_shape = None
+        self.activation = 'linear'
 
     def __call__(self, x:tf.Tensor):
         self.output_shape = (x.shape[0], -1)
@@ -107,7 +121,7 @@ class FlattenPCNLayer:
     def predict_prev(self):
         return tf.reshape(self.next_layers[0].predict_prev(), self.input_shape)
     
-    def pred_loss_d_input(self):
+    def pred_loss_d_input(self, x:tf.Tensor):
         return 1.
 
 class EncoderEncoderPCN:
@@ -115,7 +129,7 @@ class EncoderEncoderPCN:
     learning_rate : float
     img_input : object
     txt_input : object
-    def __init__(self, learning_rate : float, mask: tf.Tensor=None):
+    def __init__(self, learning_rate : float):
         self.trainable_layers = []
         self.learning_rate = learning_rate
         self.img_input = InputPCNLayer(learning_rate)
@@ -240,15 +254,15 @@ class EncoderEncoderPCN:
         self.txt_input.next_layers = [txt_embedding]
         pos_encoding = PositionalEncodingLayer(512, txt_embedding)
         txt_embedding.next_layers = [pos_encoding]
-        transformer1 = TransformerPCNLayer(3, 512, 8, learning_rate, pos_encoding, mask=mask)
+        transformer1 = TransformerPCNLayer(3, 512, 8, learning_rate, pos_encoding)
         transformer1_layers = transformer1.get_layers()
         pos_encoding.next_layers=[transformer1_layers[0]]
         self.trainable_layers += transformer1_layers
-        transformer2 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1], mask=mask)
+        transformer2 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1])
         transformer2_layers = transformer2.get_layers()
         self.trainable_layers[-1].next_layers = [transformer2_layers[0]]
         self.trainable_layers += transformer2_layers
-        transformer3 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1], mask=mask)
+        transformer3 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1])
         transformer3_layers = transformer3.get_layers()
         self.trainable_layers[-1].next_layers = [transformer3_layers[0]]
         self.trainable_layers += transformer3_layers
@@ -421,26 +435,80 @@ class EncoderEncoderPCN:
         inter20.next_layers = [dense20]
         self.trainable_layers.append(dense20)
 
-    def pass_next(self, prev_layer, layer):
-        if isinstance(layer, AddNormalizePCNLayer):
+   
+    def pass_next(self, prev_layer, layer, mask=None):
+        if hasattr(layer, 'prev_layers') and len(layer.prev_layers)==2:
             new_output = layer(layer.prev_layers[0].predict_next(), layer.prev_layers[1].predict_next())
+        elif isinstance(layer, AttentionPCNLayer):
+            new_output = layer(prev_layer.predict_next(), mask=mask)
         else:
-            new_output = layer(prev_layer.predict_next())
+            if hasattr(layer, 'state'):
+                new_output = layer(prev_layer.predict_next(), set_state=True)
+                if mask is not None and isinstance(layer, DensePCNLayer) and (layer.num_units == 48 or layer.num_units == 12 or layer.num_units == 3):
+                    mask = tf.where(
+                        (tf.cast(mask == 0, layer.wts.dtype) @ tf.abs(layer.wts)) == 0,
+                        tf.constant(-1e9, dtype=layer.wts.dtype),
+                        tf.constant(0.0, dtype=layer.wts.dtype)
+                    )
+            else:
+                new_output = layer(prev_layer.predict_next())
         if layer.next_layers != []:
             for next_layer in layer.next_layers:
-                self.pass_next(layer, next_layer)
+                self.pass_next(layer, next_layer, mask)
         else:
             print(new_output.shape)
 
 
-    def pass_through(self, img_tensor, txt_tensor):
+    def pass_through(self, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, mask:tf.Tensor=None):
+        if mask is None:
+            mask = tf.zeros((txt_tensor.shape[0], txt_tensor.shape[1]), dtype=tf.float32)
         self.img_input.set_state(img_tensor)
         self.pass_next(self.img_input, self.img_input.next_layers[0])
         self.txt_input.set_state(txt_tensor)
-        self.pass_next(self.txt_input, self.txt_input.next_layers[0])
+        self.pass_next(self.txt_input, self.txt_input.next_layers[0], mask)
 
+    
+    def update_states_wts_b(self, num_steps:int):
+        for step in tf.range(num_steps):
+            for layer in self.trainable_layers:
+                layer.update_state()
+                layer.update_wts()
+                layer.update_b()
+                gc.collect()
 
+    
+    def train_step(self, num_steps:int, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, mask:tf.Tensor=None):
+        self.img_input.is_clamped = True
+        self.txt_input.is_clamped = True
+        self.pass_through(img_tensor, txt_tensor, mask)
+        self.update_states_wts_b(num_steps)
+        
+    
+    def update_states_img(self, num_steps: int):
+        for step in range(num_steps):
+            for layer in self.trainable_layers:
+                layer.update_state()
+            self.img_input.update_state()
 
+    
+    def update_states_txt(self, num_steps: int):
+        for step in range(num_steps):
+            for layer in self.trainable_layers:
+                layer.update_state()
+            self.txt_input.update_state()
+
+    def test_step(self, num_steps:int, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, predict:Literal['img', 'txt'], mask:tf.Tensor=None):
+        self.pass_through(img_tensor, txt_tensor, mask)
+        if predict == 'img':
+            self.img_input.is_clamped = False
+            self.txt_input.is_clamped = True
+            self.update_states_img(num_steps)
+            return self.img_input.predict_next()
+        elif predict == 'txt':
+            self.img_input.is_clamped = True
+            self.txt_input.is_clamped = False
+            self.update_states_txt(num_steps)
+            return self.txt_input.predict_next()
 
 
 

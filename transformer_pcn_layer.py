@@ -12,8 +12,8 @@ class AttentionPCNLayer:
     num_heads : int
     mask : tf.Variable
     def __init__(self, d_model, num_heads, prev_layer:object, next_layers:list=None, mask:tf.Tensor=None):
-        self.is_clamped = tf.Variable(True, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = True
+        self.fix_wts_b = True
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
@@ -47,11 +47,11 @@ class AddNormalizePCNLayer:
     next_layers : list
     learning_rate : float
     def __init__(self, learning_rate:float, prev_layers:list, next_layers:list=None):
-        self.is_clamped = tf.Variable(True, trainable=False)
-        self.fix_wts_b = tf.Variable(False, trainable=False)
+        self.is_clamped = True
+        self.fix_wts_b = False
         self.learning_rate = learning_rate
-        self.gamma = tf.Variable(1., trainable=False)
-        self.beta = tf.Variable(0., trainable=False)
+        self.gamma = tf.Variable(tf.cast(1., tf.float32), trainable=False)
+        self.beta = tf.Variable(tf.cast(0., tf.float32), trainable=False)
         self.prev_layers = [] if prev_layers is None else prev_layers
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
@@ -67,6 +67,9 @@ class AddNormalizePCNLayer:
         return self(self.prev_layers[0].predict_next(), self.prev_layers[1].predict_next())
     
     def update_state(self):
+        pass
+
+    def init_state(self):
         pass
 
     def update_wts(self):
@@ -86,7 +89,7 @@ class AddNormalizePCNLayer:
                 self.gamma.assign_sub(self.learning_rate*d_pred)
 
     def update_b(self):
-        if not self.fix_wts_b:
+        if  not self.fix_wts_b:
             # 0.5*(self.predict_next() - layer.predict_prev())^2
             # (self.predict_next() - layer.predict_prev())
 
@@ -121,8 +124,8 @@ class TransformerPCNLayer:
     next_layers : list
     mask : tf.Tensor
     def __init__(self, num_layers:int, input_dim:int, num_heads:int, learning_rate:float, prev_layer:object, next_layers:list=None, mask:tf.Tensor=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(False, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = False
         self.prev_layer = prev_layer
         self.next_layers = next_layers
         self.learning_rate = learning_rate
@@ -183,13 +186,15 @@ class PositionalEncodingLayer:
     next_layers: list
     output_shape : tuple
     d_model: int
+    activation: str
     def __init__(self, d_model:int, prev_layer:object, next_layers:list=None):
-        self.is_clamped = tf.Variable(False, trainable=False)
-        self.fix_wts_b = tf.Variable(True, trainable=False)
+        self.is_clamped = False
+        self.fix_wts_b = True
         self.prev_layer = prev_layer
         self.next_layers = [] if next_layers is None else next_layers
         self.output_shape = None
         self.d_model = d_model
+        self.activation = 'linear'
 
     def __call__(self, x:tf.Tensor):
         angle_rads = np.arange(x.shape[1])[:, None] / np.power(10000, (2 * (np.arange(self.d_model)[None, :] // 2)) / np.float32(self.d_model))
@@ -217,5 +222,5 @@ class PositionalEncodingLayer:
 
         return self.next_layers[0].predict_prev() - tf.cast(pos_encoding, dtype=tf.float32)
     
-    def pred_loss_d_input(self):
+    def pred_loss_d_input(self, x:tf.Tensor):
         return 1.
