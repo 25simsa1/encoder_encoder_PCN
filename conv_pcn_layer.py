@@ -24,6 +24,9 @@ class Conv2DPCNLayer:
         self.state = None
         self.activation = activation
         self.learning_rate = learning_rate
+        self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
+        self.bias_lr = learning_rate    # kept for uniform driver setup (conv has no bias)
+        self.state_clip = float('inf')  # max |state| element magnitude after relaxation; inf = off
         self.kernel_size = kernel_size
 
     def init_params(self, input_shape:tuple):
@@ -66,7 +69,7 @@ class Conv2DPCNLayer:
                 average_d_pred += tf.cast(layer.pred_loss_d_input(self.predict_next()), tf.float32)
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
+                self.state.assign_sub(self.state_lr * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
             # pred prev layer & pred from prev layer
             if self.prev_layer is not None:
                 d_pred = tf.zeros_like(self.state)
@@ -84,7 +87,9 @@ class Conv2DPCNLayer:
                         self.wts, strides=1, padding="VALID")
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
-                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2.))
+                self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
+            if self.state_clip != float('inf'):
+                self.state.assign(tf.clip_by_value(self.state, -self.state_clip, self.state_clip))
 
     # 1/2*(gelu(conv(prev.state, self.wts))-self.state)^2
     # => (gelu(conv(prev.state, self.wts))-self.state) * d_gelu(conv(prev.state, self.wts)) * conv2dbackprop
@@ -110,7 +115,11 @@ class Conv2DPCNLayer:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
-                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/denom)
+                # LARS / trust-ratio step: scale by ||w||/||g|| (norms over the full 4D kernel/grad)
+                g = (d_state + d_pred) / denom
+                trust = tf.norm(self.wts) / (tf.norm(g) + 1e-6)
+                self.last_trust = trust  # exposed for logging only
+                self.wts.assign_sub(self.learning_rate * trust * g)
 
     def update_b(self):
         pass # there is no bias

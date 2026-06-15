@@ -26,6 +26,9 @@ class DensePCNLayer:
         self.state = None
         self.activation = activation
         self.learning_rate = learning_rate
+        self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
+        self.bias_lr = learning_rate    # bias update rate (decoupled from weight lr)
+        self.state_clip = float('inf')  # max |state| element magnitude after relaxation; inf = off
         self.share_state_layer = share_state_layer
 
     def init_params(self, input_shape:tuple):
@@ -75,7 +78,7 @@ class DensePCNLayer:
                 average_d_state += (state - pred_state)
                 
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
+                self.state.assign_sub(self.state_lr * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
 
             # pred prev layer & pred from prev layer
             if self.prev_layer is not None:
@@ -88,7 +91,9 @@ class DensePCNLayer:
                     d_pred += -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()) @ self.wts
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
-                self.state.assign_sub(self.learning_rate * ((d_pred+d_state)/2.))
+                self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
+            if self.state_clip != float('inf'):
+                self.state.assign(tf.clip_by_value(self.state, -self.state_clip, self.state_clip))
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
     # x.t @ ((state - act(x@wts+b))*act'(x@wts+b))
@@ -117,7 +122,13 @@ class DensePCNLayer:
                     x = tf.linalg.matrix_transpose(self.prev_layer.predict_next() - self.predict_prev()) @ -(self.predict_next()-self.b)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
             if not self.is_clamped or not self.prev_layer.is_clamped:
-                self.wts.assign_sub(self.learning_rate*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
+                # LARS / trust-ratio step: scale each layer's update by ||w||/||g|| so every
+                # layer moves a comparable RELATIVE amount regardless of gradient magnitude.
+                denom = tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32)
+                g = (d_state + d_pred) / denom
+                trust = tf.norm(self.wts) / (tf.norm(g) + 1e-6)
+                self.last_trust = trust  # exposed for logging only
+                self.wts.assign_sub(self.learning_rate * trust * g)
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
@@ -146,7 +157,7 @@ class DensePCNLayer:
                     x = tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.wts, axis=0)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped or not self.prev_layer.is_clamped:
-                self.b.assign_sub(self.learning_rate*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
+                self.b.assign_sub(self.bias_lr*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
 
 
     def init_state(self):

@@ -18,7 +18,9 @@ class InputPCNLayer:
         self.output_shape = None
         self.state = None
         self.learning_rate = learning_rate
-    
+        self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
+        self.bias_lr = learning_rate    # kept for uniform driver setup (input has no bias)
+
     def update_state(self):
         if not self.is_clamped:
             average_d_pred = tf.zeros_like(self.state)
@@ -37,7 +39,7 @@ class InputPCNLayer:
                 average_d_pred += layer.pred_loss_d_input(self.predict_next())
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
-                self.state.assign_sub(self.learning_rate * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
+                self.state.assign_sub(self.state_lr * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
 
     def update_wts(self):
         pass # there is no wts

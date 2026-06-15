@@ -50,6 +50,8 @@ class AddNormalizePCNLayer:
         self.is_clamped = True
         self.fix_wts_b = False
         self.learning_rate = learning_rate
+        self.state_lr = learning_rate   # unused (AddNorm has no state) but kept for uniform driver setup
+        self.bias_lr = learning_rate    # beta (bias) update rate (decoupled from weight lr)
         self.gamma = tf.Variable(tf.cast(1., tf.float32), trainable=False)
         self.beta = tf.Variable(tf.cast(0., tf.float32), trainable=False)
         self.prev_layers = [] if prev_layers is None else prev_layers
@@ -102,7 +104,7 @@ class AddNormalizePCNLayer:
                 x = (self.predict_next() - layer.predict_prev())
                 d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x)))
             if num_layers!=0:
-                self.beta.assign_sub(self.learning_rate*d_pred)
+                self.beta.assign_sub(self.bias_lr*d_pred)
             
 
 
