@@ -218,48 +218,74 @@ gate that confirms no scale is starved.
 ## 5. The giant reconstruction heads (about 6B of 7.7B params, and they are the decoders)
 
 The `flatten -> Dense(100) -> Dense(huge)` heads are simultaneously the parameter monsters and the
-generative decoders that L4 requires. Two options.
+generative decoders that L4 requires.
 
-- Option K, keep them for the first port run. Recommended. The standing constraint on this repo is do
-  not change the architecture or shrink the model to fix memory, memory is solved by hardware. Keeping
-  the heads validates the actual model and keeps the bidirectional reconstruction pathway exactly as
-  designed. Cost, the `inter9` matrix is about 2B params and the static weight footprint stays around
-  28.7 GiB. This is the faithful first run.
-- Option R, replace later as an explicit, separately approved experiment. Swap each
-  `flatten -> Dense(100) -> Dense(huge)` head for a small convolutional decoder, for example
-  `global pool or 1x1 conv -> a few transpose-conv upsampling layers` back to image size, and a small
-  token decoder on the text side. This cuts the head params by one to two orders of magnitude and
-  still provides a genuine generative pathway, which is what Stage 1.6 validated (the miniature used a
-  small dense decoder, a transpose-conv decoder is the same idea at image scale). It does change the
-  architecture, so it must not be done as a silent memory fix, it is a deliberate model change that
-  needs the owner's sign-off and its own before/after generation comparison.
+DECISION. Option K, KEEP the flatten-dense reconstruction heads. This was previously a recommendation
+with a conv-decoder replacement (Option R) held as an opt-in. Stage 1.7
+(`stage1/stage1_7_conv_decoder_pcn.py`) ran that experiment as a miniature and the result reverses
+the temptation to replace them. Option R is now ruled out for this model.
 
-Recommendation. Run Option K first to validate the method on the real model. Hold Option R as a
-clearly-labeled follow-up if the owner later decides to trade fidelity for cost.
+What Stage 1.7 did. A controlled same-seed head-to-head off the passing Stage 1.6 model, changing ONE
+thing only, the image decoder. The flatten-dense decoder versus a conv/deconv decoder
+(`dense-project to 7x7x16 -> nearest-upsample + conv, twice -> sigmoid`). Everything else identical.
+
+| metric | conv decoder | dense (flatten) |
+|---|---|---|
+| image-decoder params | 152,545 (61 percent) | 250,896 |
+| image to text accuracy | 0.640 | 0.626 |
+| image to image recon MSE | 0.012 (sharper) | 0.032 |
+| text to image per-class | 0.40 (collapses) | 0.90 |
+| attention grad, generative dir | 0.27 | 0.17 |
+| multi-scale anchor health | balanced, spread 7x, none frozen | same structure |
+
+The deciding fact. The conv decoder has fewer params and reconstructs images BETTER (image to image
+MSE 0.012 versus 0.032, visibly crisp), yet text to image generation COLLAPSES, per-class re-read
+0.40 versus the dense head's 0.90, visually fragments and a mode-collapse to a generic stroke for most
+classes while the dense head emits recognizable digit prototypes. The text-clamped relaxation energy
+first rose, which looked like instability, but a smaller generative step fixed the descent and
+generation still collapsed, so the collapse is a real generalization limit, not a step-size artifact.
+
+The interpretation. A sharper conv decoder overfits the in-distribution, image-driven latent, which is
+exactly why its reconstruction is crisp, but it generalizes the off-manifold TEXT-only latent worse,
+so cross-modal generation collapses. The smoother dense head tolerates weak text conditioning and
+still emits a recognizable prototype. Better reconstruction traded against generation. Generation IS
+the purpose of this model (bidirectional image to text and text to image), so the dense head wins.
+
+L3 is not the concern here. The multi-scale per-scale anchors survived the decoder swap intact
+(per-scale state movement about 0.4 to 0.7, gradient spread 7x, no frozen scale). The decoder swap
+did not re-break depth. The failure was purely text-side generation quality.
+
+Consequence. Keep the heads, the `inter9` matrix stays about 2B params and static weights stay around
+28.7 GiB, and the memory cost of the autodiff backward graph is paid by gradient checkpointing in
+section 6, not by replacing the decoders.
 
 ---
 
 ## 6. Revised memory and pod profile
 
-This is the part the autodiff rewrite changes most, and it cuts both ways.
+Because section 5 keeps the about 6B-param heads (Option K), the heads stay in memory and gradient
+checkpointing becomes the PRIMARY memory lever, not an optional one.
 
-- Static weights. Unchanged if heads are kept (Option K), about 28.7 GiB. Option R would cut this
-  dramatically, roughly to a few GiB, but is deferred.
+- Static weights. About 28.7 GiB, unchanged, since the heads are kept. The conv-decoder route that
+  would have cut this is ruled out per section 5.
 - Removed by section 4. The per-layer conv and transformer STATE Variables, persistent memory, freed.
-- Added by L1. Autodiff of one F over the whole graph stores forward activations for the backward
-  pass. The current hand-written scheme never built a full backward graph, so peak ACTIVATION memory
-  under autodiff can be higher than before, especially across the 2B-param `inter9` head and the
-  17-block pyramid. This is a real new cost, not present in the old code.
-- Net expectation. Peak is still in the same regime as before, tens of GiB, and could exceed the old
-  60 to 67 GiB peak because of the backward graph. Plan for an 80 GB GPU and treat headroom as tight.
-- Memory levers that are NOT architecture changes, so allowed.
+- Added by L1, the honest flag. Autodiff of one F over the whole graph materializes a backward graph
+  storing forward activations for the backward pass. The current hand-written scheme never built that
+  graph, so peak ACTIVATION memory under autodiff can be higher than the old run, especially across
+  the 2B-param `inter9` head and the 17-block pyramid. This is a real new cost not present before, and
+  it may push peak above the old 60 to 67 GiB.
+- Primary lever. Gradient checkpointing (`tf.recompute_grad`) on the giant heads and on the
+  transformer blocks, trading compute for activation memory. This is now load-bearing, not optional,
+  because the heads are staying. It changes nothing about the model or the math.
+- Always-on supporting levers, not architecture changes.
   - `TF_GPU_ALLOCATOR=cuda_malloc_async`, which already took the old run from OOM to a completed step.
-  - `jit_compile=True` on both step functions, XLA fusion, as proven safe and faster in the stages.
-  - Gradient checkpointing (`tf.recompute_grad`) on the giant heads and on transformer blocks, which
-    trades compute for activation memory. This is the primary lever if the backward graph does not
-    fit. It changes nothing about the model or the math.
-- If even checkpointing does not fit on 80 GB with heads kept, that is the empirical trigger to
-  reconsider Option R, as a decision, not a silent shrink.
+  - `jit_compile=True` on both step functions, XLA fusion, proven safe and faster in the stages.
+- Fallback order if checkpointing plus an 80 GB pod still does not fit. A bigger GPU (for example
+  H100 80 GB or a multi-GPU split), then a smaller batch, then activation or optimizer-state offload to
+  host memory. NOT swapping the decoders. Stage 1.7 showed conv decoders break text to image, which is
+  the model's core capability, so decoder replacement is off the table as a memory fix.
+- Target to confirm. An 80 GB pod, `TF_GPU_ALLOCATOR=cuda_malloc_async`, `jit_compile=True`, with
+  gradient checkpointing enabled from the start.
 
 ---
 
@@ -311,8 +337,9 @@ Bet, not yet validated, watch closely.
   572x572x3 COCO images and real word or character captions are harder, and the `a_gen >= a_cross`
   balance that worked on the toy may need re-tuning. 7c tests this directly.
 - Autodiff peak memory over the 2B-param heads. May exceed 80 GB even with `cuda_malloc_async` and
-  jit. Gradient checkpointing is the planned mitigation, but whether it is sufficient with the heads
-  kept is unverified. This is the empirical trigger for the Option R discussion.
+  jit. Gradient checkpointing is now the primary mitigation (section 6), but whether it is sufficient
+  with the heads kept is unverified. If it is not, the fallback is a bigger GPU, smaller batch, or
+  activation offload, NOT swapping decoders, since Stage 1.7 showed conv decoders break text to image.
 - The 5 shared latents are large reconstruction vectors rather than small bottleneck codes, so the
   coupling and the reconstruction are entangled. Whether the `a_gen` vs `a_cross` split behaves as
   cleanly as in the toy, where the latent was small, is a bet.
@@ -321,7 +348,8 @@ Bet, not yet validated, watch closely.
 
 ## Decisions requested before any code
 
-1. Option K versus Option R for the giant heads. Recommendation is K for the first faithful run.
+1. The giant heads. DECIDED, Option K, keep the flatten-dense heads, per the Stage 1.7 evidence in
+   section 5. Conv-decoder replacement (Option R) is ruled out because it collapses text to image.
 2. The starting precision ratio `a_gen = 2, a_cross = 1`, and agreement to sweep it on the pod.
 3. Confirm an 80 GB pod and that gradient checkpointing is acceptable as the memory lever.
 4. Confirm the staged gating in section 7, in particular that 7a to 7c must pass before 7d.
