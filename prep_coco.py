@@ -46,21 +46,28 @@ id2file = {im["id"]: im["file_name"] for im in cap["images"]}
 ids = [i for i in id2cap if i in id2file][:N]
 print(f"selected {len(ids)} image-caption pairs", flush=True)
 
-# ---- images (download individually, skip failures) ----
+# ---- images: PARALLEL download (latency-bound), then serial decode ----
 from PIL import Image
-imgs, caps, kept = [], [], []
-for j, iid in enumerate(ids):
+from concurrent.futures import ThreadPoolExecutor
+def dl(iid):
     fn = id2file[iid]; path = f"{IMGDIR}/{fn}"
+    if not os.path.exists(path):
+        try: urllib.request.urlretrieve(IMG_URL.format(fn), path)
+        except Exception: return
+with ThreadPoolExecutor(max_workers=32) as ex:
+    list(ex.map(dl, ids))
+print(f"downloads done ({time.time()-t0:.0f}s)", flush=True)
+imgs, caps, kept = [], [], []
+for iid in ids:
+    fn = id2file[iid]; path = f"{IMGDIR}/{fn}"
+    if not os.path.exists(path):
+        continue
     try:
-        if not os.path.exists(path):
-            urllib.request.urlretrieve(IMG_URL.format(fn), path)
         im = Image.open(path).convert("RGB").resize((572, 572))
-        imgs.append((np.asarray(im, dtype="float32") / 255.0))   # [0,1] RGB
+        imgs.append(np.asarray(im, dtype="float32") / 255.0)     # [0,1] RGB
         caps.append(id2cap[iid]); kept.append(iid)
     except Exception as e:
         print(f"  skip {fn}: {e}", flush=True)
-    if (j + 1) % 100 == 0:
-        print(f"  {j+1}/{len(ids)} images ({time.time()-t0:.0f}s)", flush=True)
 
 # ---- captions -> char one-hot + mask ----
 chars = sorted(set("".join(caps)) | {"\0"})
