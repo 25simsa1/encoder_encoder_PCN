@@ -14,6 +14,15 @@ image-text data and is explicitly out of scope here.
 DIVERGENCE WATCH: if F climbs sharply or any weight/state goes non-finite, STOP immediately and report
 the step and values. (Periodic full-weight checkpoints are not cheap at 28.7 GiB, so we monitor-and-
 stop instead; F is logged every 10 steps so the trajectory survives an early stop.)
+
+RESULT (A100 80GB, 140/140 steps, NO divergence): post-relaxation F decreased monotonically from
+2.45 to 0.097 (~25x), max|w| stayed ~1.01 and max|state| bounded throughout. NO scale ever froze
+(frozen=[] at every log) across all 5 image scales, 5 text scales, and 9 conv layers -- the raw
+per-scale GRAD spread is large (~400x-13000x, inherent to the model) but LARS's uniform relative step
+keeps every scale active, which is exactly what fixes the original 400x frozen-deep-scale failure.
+The bias trust floor worked: a zero-init bias moved off zero (0 -> 1.05e-5). Memory peak 62.2 GB.
+So 7b is stable and optimizing on the full 7.76B model. Caveat: synthetic data (4 clamped pairs),
+so the F drop is fitting those pairs, not real learning; 7c needs real image-text data.
 """
 import os, sys, time, gc
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
