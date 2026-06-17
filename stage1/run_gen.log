@@ -1,0 +1,27 @@
+[A pre ] clamp-image F 181.159->180.283 mono=True | clamp-text F 3.678->3.433 mono=True
+  epoch  0  F=55.962  img->text acc=0.138  |g|conv=[9.4e-02,4.4e-02,2.5e-02]  |g|attn=2.6e-01 |g|dec_img=4.6e+00 max|p|=1.10
+  epoch  4  F=51.776  img->text acc=0.176  |g|conv=[4.3e-02,1.8e-02,1.6e-02]  |g|attn=9.7e-02 |g|dec_img=4.2e+00 max|p|=1.27
+  epoch  8  F=40.620  img->text acc=0.404  |g|conv=[2.6e-02,3.0e-02,2.0e-02]  |g|attn=1.7e-01 |g|dec_img=3.7e+00 max|p|=1.36
+  epoch 12  F=36.719  img->text acc=0.484  |g|conv=[4.0e-02,2.9e-02,1.9e-02]  |g|attn=2.2e-01 |g|dec_img=4.2e+00 max|p|=1.37
+  epoch 16  F=29.920  img->text acc=0.486  |g|conv=[3.4e-02,2.6e-02,2.1e-02]  |g|attn=2.1e-01 |g|dec_img=4.1e+00 max|p|=1.39
+  epoch 20  F=26.771  img->text acc=0.526  |g|conv=[2.3e-02,2.2e-02,2.3e-02]  |g|attn=2.4e-01 |g|dec_img=3.6e+00 max|p|=1.45
+  epoch 24  F=28.872  img->text acc=0.534  |g|conv=[1.5e-02,1.7e-02,1.6e-02]  |g|attn=2.4e-01 |g|dec_img=3.5e+00 max|p|=1.51
+  epoch 28  F=23.817  img->text acc=0.584  |g|conv=[1.2e-02,1.5e-02,1.4e-02]  |g|attn=1.8e-01 |g|dec_img=3.2e+00 max|p|=1.55
+  epoch 29  F=25.092  img->text acc=0.582  |g|conv=[7.9e-03,1.8e-02,1.5e-02]  |g|attn=1.6e-01 |g|dec_img=3.3e+00 max|p|=1.56
+[A post] clamp-image F 38.600->21.057 mono=True | clamp-text F 1.425->1.208 mono=True
+[C gen ] image->image recon MSE=0.0317 (pixels in [0,1])
+[C gen ] text->image per-class (class->pred): [(0, 0), (1, 8), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 5), (9, 9)]
+[C gen ] text->image gen-class-acc(per-class)=0.800  (200-sample weighted=0.950, chance=0.10)
+[D attn] grad-norm generative(text-in)=1.58e-01  discriminative(text-out)=0.00e+00 (disc ~0 by design: img->text never runs the text encoder)
+
+==== STAGE 1.6 (bidirectional bPC miniature, text<->image) ====
+A energy descends BOTH directions    : True  (clamp-img 38.60->21.06, clamp-txt 1.42->1.21, trainF 60.91->24.80)
+B discriminative img->text works     : True  (test acc=0.582, chance=0.10)
+C generation recognizable            : True  (text->image gen-class-acc=0.800, image->image recon MSE=0.0317)
+D attention healthy generative dir   : True  (gen=1.58e-01, disc=0.00e+00)
+E per-conv-layer grads balanced      : True  (median ['2.3e-02', '2.1e-02', '1.7e-02'], spread=1.4e+00, max|p|=1.56)
+
+VERDICT: PASS
+hyperparams: D=64 d_model=32 conv=[(1, 8, 2), (8, 16, 2), (16, 32, 2)] N_infer=20 beta=0.1 alpha=0.04 epochs=30 PI(cross,disc,gen)=(1.0,1.0,2.0)
+plots: gen_energy_inference / gen_training / gen_accuracy / text2image_samples / image2image_recon / gen_grad_norms
+train wall-clock: 48.6s (CPU, jit_compile=True)

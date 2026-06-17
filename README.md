@@ -5,7 +5,6 @@ This repository implements a multimodal learning framework based on **bidirectio
 
 
 ## Overview
-
 Modern multimodal systems typically rely on large-scale encoder-decoder architectures or autoregressive transformers. While effective, these approaches often lack explicit mechanisms for verifying how information is stored, updated, or retrieved internally.
 
 This project investigates an alternative perspective:

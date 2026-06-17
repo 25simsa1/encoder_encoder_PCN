@@ -1,0 +1,30 @@
+[A pre-train ] F 16.725 -> 12.904  monotone=True
+  pre-train per-conv-layer state movement:  h0=3.72e-03  h1=2.06e-03  h2=8.12e-03  h3=3.62e-03  h4=6.20e-02
+  epoch  0  F=6.808  train_acc=0.180  test_acc=0.206  |g|conv=[1.5e-03,1.3e-03,2.0e-03,1.4e-03,1.8e-03]  |g|attn=2.6e-01 max|p|=0.81
+  epoch  4  F=3.388  train_acc=0.343  test_acc=0.336  |g|conv=[7.2e-04,1.5e-03,2.7e-03,1.8e-03,1.9e-03]  |g|attn=1.9e-01 max|p|=0.96
+  epoch  8  F=3.173  train_acc=0.427  test_acc=0.396  |g|conv=[7.2e-04,1.4e-03,2.5e-03,1.6e-03,1.8e-03]  |g|attn=1.7e-01 max|p|=1.15
+  epoch 12  F=2.445  train_acc=0.453  test_acc=0.438  |g|conv=[1.2e-03,1.5e-03,2.3e-03,1.8e-03,1.8e-03]  |g|attn=9.8e-02 max|p|=1.27
+  epoch 16  F=2.040  train_acc=0.468  test_acc=0.464  |g|conv=[9.5e-04,1.5e-03,2.3e-03,1.3e-03,1.4e-03]  |g|attn=7.7e-02 max|p|=1.35
+  epoch 20  F=2.560  train_acc=0.490  test_acc=0.482  |g|conv=[9.2e-04,1.2e-03,1.7e-03,1.5e-03,1.6e-03]  |g|attn=1.8e-01 max|p|=1.42
+  epoch 24  F=2.182  train_acc=0.497  test_acc=0.492  |g|conv=[1.2e-03,1.3e-03,2.0e-03,1.5e-03,1.6e-03]  |g|attn=5.7e-02 max|p|=1.47
+[A post-train] F 7.009 -> 2.646  monotone=True
+  post-train per-conv-layer state movement: h0=1.58e-03  h1=2.48e-03  h2=3.46e-03  h3=7.86e-03  h4=1.55e-02
+  post-train shared-latent movement:        s0=3.13e-01  s1=1.71e-01  s2=3.34e-01  s3=5.19e-01  s4=7.62e-01
+  inertness (i) free-vs-pinned top-latent rel-diff = 7.283e-04  (top latent is anchor-dominated)
+  inertness (i') readout acc conv-free=0.492 vs conv-PINNED=0.492  (conv relaxation effect on readout)
+  inertness (ii) depth-3 E=1.977 vs depth-5 E=1.710  rel-diff=1.349e-01  (d3 moves=['3.4e-05', '2.3e-03', '9.5e-02'], d5 moves=['8.4e-09', '1.6e-06', '6.8e-05', '7.5e-03', '2.2e-01'])
+
+==== STAGE 1.5 (deep Option-1, single energy, NOT collapsed; dense per-scale anchors) ====
+A inference energy down (monotone)   : True  (post 7.009 -> 2.646)
+B training energy trends down        : True  (6.740 -> 2.636)
+C cross-modal acc above chance       : True  (test=0.492, train=0.497, chance=0.10)
+D every conv layer active            : True  (the user's depth criterion)
+   - conv state movement (post)      : ['1.6e-03', '2.5e-03', '3.5e-03', '7.9e-03', '1.6e-02']  all>0.001? True  frozen=[]
+   - per-layer median grad norm      : ['6.5e-04', '1.1e-03', '1.7e-03', '1.3e-03', '1.3e-03']  spread=2.7e+00 (<1e3? True)  offscale=[]
+   - finite=True nonzero=True bounded(max|p|=1.47)=True
+   diagnostics: depth-diff=1.35e-01 (>1e-3 => not inert: True); free-vs-pinned top-latent=7.28e-04; readout acc free=0.492/pinned=0.492
+
+VERDICT: PASS
+  Depth HOLDS: a 5-deep conv free-state stack (NOT collapsed) + dense per-scale label anchors gives balanced finite gradients at every layer (spread 2.7x) and learns. The naive top-only-anchor version FAILED here (deepest grad ~400x smaller); dense multi-scale anchoring -- which the 7.7B model already has (5 shared-state scales) -- is what makes depth work.
+hyperparams: conv=[(1, 8, 2), (8, 16, 2), (16, 32, 1), (32, 32, 2), (32, 32, 1)] taps=[0, 1, 2, 3, 4] D=48 d_model=32 blocks=3 L=12  N_infer=40 beta=0.1 alpha=0.04 epochs=25 PI(r,c,l)=(1.0,1.0,6.0)
+train wall-clock: 221.5s (CPU, jit_compile=True)
