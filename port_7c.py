@@ -25,13 +25,13 @@ from conv_pcn_layer import Conv2DPCNLayer, MaxPool2DPCNLayer
 from transformer_pcn_layer import AttentionPCNLayer, AddNormalizePCNLayer
 
 print("GPUs:", tf.config.list_physical_devices("GPU"), flush=True)
-WORK = "/workspace/coco7c"; CKPT = "/workspace/ckpt7c"
+WORK = "/workspace/coco7c"; CKPT = os.environ.get("CKPT_DIR", "/root/ckpt7c")  # LOCAL disk (overlay, fast); the /workspace net-FS 31GB write (~11min) killed prior runs
 A_CROSS, A_GEN = 1.0, 2.0
 REL_C, N_INFER, LR = 0.05, 8, 1e-3
 CODE = 16; REC_HW = 64; DEC_SD = 1e-3
 TRAIN_S = float(os.environ.get("TRAIN_MIN", "85")) * 60
 DO_CKPT = os.environ.get("DO_CKPT", "1") == "1"          # the 31GB ckpt on the network FS is ~11min/write and killed prior runs; allow disabling
-CKPT_EVERY = 15 * 60; LOG_EVERY = 25; GEN_INFER = 25
+CKPT_EVERY = 25 * 60; LOG_EVERY = 50; GEN_INFER = 25
 t0 = time.time()
 
 # ---- data ----
@@ -134,8 +134,16 @@ try:
             sgn = sg.numpy(); smin, smax = float(sgn.min()), float(sgn.max())
             print(f"  step {step:4d} t={ (time.time()-t0)/60:.1f}m  F={F:.4e} max|w|={mxw:.3e} max|s|={mxs:.3e}  gradScale[{smin:.1e},{smax:.1e}] spread={smax/(smin+1e-30):.0f}x", flush=True)
         if DO_CKPT and time.time() - last_ckpt > CKPT_EVERY:
-            tc = time.time(); mgr.save(); last_ckpt = time.time()
-            print(f"  [ckpt @ step {step}, {time.time()-tc:.0f}s]", flush=True)
+            tc = time.time()
+            try:
+                mgr.save(); dt = time.time() - tc
+                print(f"  [ckpt @ step {step}, {dt:.0f}s -> {CKPT}]", flush=True)
+            except Exception as ce:
+                dt = 999.0; print(f"  [ckpt FAILED: {ce!r}]", flush=True)
+            last_ckpt = time.time()
+            if dt > 120:                                  # a write must never eat the run again
+                DO_CKPT = False
+                print("  [ckpt write >2min/failed -> DISABLING further checkpoints to protect the run]", flush=True)
 except Exception as e:
     print("TRAIN EXCEPTION:", repr(e), flush=True); (mgr.save() if DO_CKPT else None)
 if DO_CKPT: mgr.save()
