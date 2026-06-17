@@ -30,6 +30,7 @@ A_CROSS, A_GEN = 1.0, 2.0
 REL_C, N_INFER, LR = 0.05, 8, 1e-3
 CODE = 16; REC_HW = 64; DEC_SD = 1e-3
 TRAIN_S = float(os.environ.get("TRAIN_MIN", "85")) * 60
+DO_CKPT = os.environ.get("DO_CKPT", "1") == "1"          # the 31GB ckpt on the network FS is ~11min/write and killed prior runs; allow disabling
 CKPT_EVERY = 15 * 60; LOG_EVERY = 25; GEN_INFER = 25
 t0 = time.time()
 
@@ -108,7 +109,7 @@ def weight_step(xi, xt, S, igt, tgt, lr):
 step_v = tf.Variable(0, dtype=tf.int64)
 ckpt = tf.train.Checkpoint(step=step_v, **{f"v{i}": v for i, v in enumerate(ALL_W)})
 mgr = tf.train.CheckpointManager(ckpt, CKPT, max_to_keep=1)
-if mgr.latest_checkpoint:
+if DO_CKPT and mgr.latest_checkpoint:
     ckpt.restore(mgr.latest_checkpoint).expect_partial(); print(f"RESUMED from {mgr.latest_checkpoint} at step {int(step_v)}", flush=True)
 
 # ---- training (time-boxed) ----
@@ -128,16 +129,16 @@ try:
         if (not np.isfinite(F)) or (not np.isfinite(mxw)) or mxw > 1e3 or (len(Fhist) > 10 and F > 8 * min(Fhist) + 1):
             diverged = True
             print(f"  !! DIVERGENCE step {step}: F={F:.3e} max|w|={mxw:.3e} max|state|={mxs:.3e} -> STOP", flush=True)
-            mgr.save(); break
+            (mgr.save() if DO_CKPT else None); break
         if step % LOG_EVERY == 0:
             sgn = sg.numpy(); smin, smax = float(sgn.min()), float(sgn.max())
             print(f"  step {step:4d} t={ (time.time()-t0)/60:.1f}m  F={F:.4e} max|w|={mxw:.3e} max|s|={mxs:.3e}  gradScale[{smin:.1e},{smax:.1e}] spread={smax/(smin+1e-30):.0f}x", flush=True)
-        if time.time() - last_ckpt > CKPT_EVERY:
+        if DO_CKPT and time.time() - last_ckpt > CKPT_EVERY:
             tc = time.time(); mgr.save(); last_ckpt = time.time()
             print(f"  [ckpt @ step {step}, {time.time()-tc:.0f}s]", flush=True)
 except Exception as e:
-    print("TRAIN EXCEPTION:", repr(e), flush=True); mgr.save()
-mgr.save()
+    print("TRAIN EXCEPTION:", repr(e), flush=True); (mgr.save() if DO_CKPT else None)
+if DO_CKPT: mgr.save()
 trained = len(Fhist)
 print(f"\n[train done] steps={step} (this run {trained})  diverged={diverged}  t={(time.time()-t0)/60:.1f}m", flush=True)
 if trained:
