@@ -1,0 +1,35 @@
+GPUs: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+shared-latent dims: [102400, 161817, 345871, 702332, 1429912]  (NS=5)   model build 0.4s
+
+[Phase 0] one feed-forward (allocates all weights)...
+  img taps [(1, 102400), (1, 161817), (1, 345871), (1, 702332), (1, 1429912)]
+  txt taps [(1, 102400), (1, 161817), (1, 345871), (1, 702332), (1, 1429912)]  (2.3s)
+  peak after forward: 36.9 GB
+  trainable tensors 350  (~7.76B params; decoder adds 52.8M)
+
+[7a] relaxation energy descent (S free, both inputs clamped, zero init -> must descend)
+  F: 2.2098e+06 -> 1.2141e+06   monotone_down=True  descends=True
+  image-recon err 4.576e+02->4.575e+02   text-recon err 3.263e+02->3.267e+02   states_finite=True
+
+[MEMORY PROBE + L2 grad guard] one forward + one backward at the relaxed states (batch 1)...
+  F=1.1934e+06   fwd+bwd 1.6s   PEAK 63.3 GB / 80 GB
+  L2 GRAD GUARD (per module):
+    conv_tower       |grad|=7.754e+05  finite=True nonzero=True
+    transformer      |grad|=2.014e+06  finite=True nonzero=True
+    img_head_dense   |grad|=5.760e+03  finite=True nonzero=True
+    txt_head_dense   |grad|=3.054e+03  finite=True nonzero=True
+    img_decoder      |grad|=2.079e+01  finite=True nonzero=True
+    txt_decoder      |grad|=7.027e+01  finite=True nonzero=True
+  one SGD step applied; sampled weights finite = True
+
+==== 7a PASS ====
+  memory peak (fwd+bwd, batch1) : 63.3 GB / 80 GB  (fits; checkpointing not needed at batch 1)
+  relaxation energy descends    : True  (2.210e+06->1.214e+06), monotone=True
+  both recon dirs improve       : image 4.58e+02->4.58e+02, text 3.26e+02->3.27e+02
+  states finite / weights finite: True / True
+  L2 grad guard (all 6 modules) : True
+  total wall-clock 6.0s
+NOTE: only ONE eager backward fits (two fragment the pool -> OOM on the 8.26GB inter9 grad).
+      Multiple weight steps need jit_compiled buffer reuse (the PORT_PLAN jit step) -- next up.
+      Cross-modal generation (free a raw input through the deep encoder) is a 7c item.
+STOP per hard-stop rule (no 7b/7c/7d).
