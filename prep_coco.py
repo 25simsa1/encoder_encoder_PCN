@@ -19,7 +19,7 @@ import os, sys, json, zipfile, urllib.request, time
 import numpy as np
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 400        # number of image-caption pairs (few hundred)
-WORK = "/workspace/coco7c"
+WORK = os.environ.get("COCO7C_DIR", "/workspace/coco7c") # /workspace on the pod (persistent); overridable for local validation
 IMGDIR = f"{WORK}/img"
 os.makedirs(IMGDIR, exist_ok=True)
 T = 192                                                   # caption positions (repo num_tokens)
