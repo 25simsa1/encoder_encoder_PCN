@@ -5,6 +5,18 @@ so MULTIPLE steps reuse buffers (one eager backward fit, two fragmented the pool
 STRICT: only the energy reduction (mean vs sum) and the step execution change. No architecture / no
 forward-math change. Pure forward over the existing graph, only the 5 shared latents are free, plus
 the small decode-to-input anchor decided with the user.
+
+RESULT (pre-7b, A100 80GB): per-edge MEAN normalization tamed the weight-gradient SCALE from 1e5-1e6
+to order 1 (conv ~1.9, transformer ~2.7, heads ~0.03, decoders ~1e-3), and graph-mode @tf.function
+peaks 43 GB with MULTIPLE weight steps fitting (no fragmentation OOM; XLA jit_compile was too slow to
+compile the 7.76B graph). BUT the frozen-vs-explode gap PERSISTS: lr <= 1e-5 stays bounded but moves
+the conv only ~4e-6 (frozen), while lr = 1e-4 diverges to NaN. No lr both moves meaningfully AND stays
+bounded. Two residual drivers: the ~5700x gradient spread ACROSS modules (one global SGD lr cannot
+suit conv/transformer ~1 and decoders ~1e-3 at once), and the forward conditioning of the unnormalized
+giant flatten->Dense head chains. So per-edge energy normalization is NECESSARY but NOT SUFFICIENT;
+before 7b the conditioning needs addressing (per-edge precision a la bPC, an adaptive/per-parameter
+optimizer, gradient clipping, or per-module lr). Caveat: the sweep takes weight steps at a FIXED
+relaxed S0; proper relax/step alternation may shift the exact lr boundary but not the structure.
 """
 import os, sys, time, gc
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
@@ -112,7 +124,11 @@ GUARD = [("conv", gidx(first(lambda v: len(v.shape) == 4))),
          ("img_decoder", gidx(W_DI)), ("txt_decoder", gidx(W_DT))]
 GIDX = [i for _, i in GUARD]
 
-@tf.function(jit_compile=True)
+# NOTE: jit_compile=True was tried first but XLA-compiling the full 7.76B forward+backward+update
+# graph did not finish in minutes on the pod. Plain @tf.function (graph mode) traces in ~6s, reuses
+# buffers across calls (so multiple weight steps fit, fixing the eager fragmentation OOM), and peaked
+# 43 GB. So graph mode is the working choice; XLA fusion is a later optimization.
+@tf.function
 def jit_step(xi, xt, S, lr):
     with tf.GradientTape() as t:
         t.watch(ALL_W)
@@ -153,20 +169,22 @@ if not guard_ok:
     raise RuntimeError("grad guard FAILED (None/zero/nonfinite).")
 
 # ---- multi-step confirmation + LR sweep (frozen-vs-explode) ----
-print("\n[LR sweep] multi-step (jit buffer reuse); per lr ~18 steps; weights MOVE off init AND stay BOUNDED?")
-cw = first(lambda v: len(v.shape) == 4); cw_init = tf.identity(cw)
+print("\n[LR sweep] multi-step (graph-mode buffer reuse); per lr 18 steps; MOVE-meaningfully AND BOUNDED?")
+cw = first(lambda v: len(v.shape) == 4)
+LRS = [1e-8, 1e-7, 1e-6, 1e-5, 1e-4]
 results = []
-for lr in [1e-4, 1e-3, 1e-2]:
+for lr in LRS:
+    cw0 = tf.identity(cw)                                   # per-segment movement
     lr_t = tf.constant(lr, tf.float32); mxs = []
     for _ in range(18):
         _, mx, _ = jit_step(xi, xt, S0, lr_t); mxs.append(float(mx))
-    moved = float(tf.norm(cw - cw_init) / (tf.norm(cw_init) + 1e-9))     # cumulative since init
+    seg_moved = float(tf.norm(cw - cw0) / (tf.norm(cw0) + 1e-9))
     bounded = bool(np.isfinite(mxs[-1])) and mxs[-1] < 1e3
-    results.append((lr, mxs[0], mxs[-1], moved, bounded))
-    print(f"  lr={lr:.0e}: max|w| {mxs[0]:.3e} -> {mxs[-1]:.3e}   conv moved(cum)={moved:.2e}   bounded={bounded}")
-bounded_lrs = [r[0] for r in results if r[3] > 1e-6 and r[4]]
-largest = max(bounded_lrs) if bounded_lrs else None
-multistep_ok = len(results) == 3       # got through all sweeps without OOM
+    results.append((lr, mxs[0], mxs[-1], seg_moved, bounded))
+    print(f"  lr={lr:.0e}: max|w| {mxs[0]:.3e} -> {mxs[-1]:.3e}   conv moved={seg_moved:.2e}   bounded={bounded}")
+multistep_ok = (len(results) == len(LRS))                  # all sweeps completed without OOM
+moving_and_bounded = [r[0] for r in results if r[3] > 1e-3 and r[4]]   # MEANINGFUL move (>1e-3) AND bounded
+largest = max(moving_and_bounded) if moving_and_bounded else None
 print(f"  multi-step ran without OOM: {multistep_ok}")
 print(f"  largest moving-and-bounded lr: {largest:.0e}" if largest else "  no lr both moved AND stayed bounded")
 
