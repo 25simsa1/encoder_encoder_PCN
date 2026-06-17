@@ -1,3 +1,7 @@
 *.zip
 coco/
 train2017/
+# kept local-only (never pushed) -- preserved on branch lit-review-local
+LIT_REVIEW.md
+dissoc_run.log
+__pycache__/
