@@ -1,17 +1,10 @@
-"""PORT of the verified bidirectional one-energy method onto the 7.7B encoder_encoder_PCN.
-PORT_PLAN.md Option C (decided with the user 2026-06-16): conv tower + transformer pyramid as
-FEED-FORWARD autodiff edges, only the 5 shared latents free, plus a small decode-to-input anchor
-(the model has NO decode-to-pixels/tokens head -- its flatten->Dense heads terminate AT the 5 shared
-coupling latents, so feed-forward + cross-only would collapse, violating L1).
-
-Rewrite of the EXECUTION (one energy F, two tapes, tape.gradient). Imports the existing layer
-forwards and walks the existing graph wiring purely (no in-place state writes). Architecture and
-forward math are untouched.
-
-Runs: build + forward (shapes), then ONE forward+backward at the relaxed states that serves as BOTH
-the MEMORY PROBE and the L2 grad-guard source (one backward only -- two eager backwards fragment the
-pool and OOM on the 8.26 GB inter9 gradient). 7a checks: relaxation energy descends, states finite,
-every module gets a finite nonzero gradient (RAISES on None/zero), one SGD step is takeable. STOP.
+"""PORT of the bidirectional one-energy method onto the 7.7B encoder_encoder_PCN (Option C).
+PRE-7b update: (1) normalize every prediction-error term in F to a per-ELEMENT MEAN (MSE per edge,
+not a raw sum over 100k-1.4M dims) to tame the 1e5-1e6 gradient runaway; (2) jit-compiled weight step
+so MULTIPLE steps reuse buffers (one eager backward fit, two fragmented the pool); (3) LR sweep.
+STRICT: only the energy reduction (mean vs sum) and the step execution change. No architecture / no
+forward-math change. Pure forward over the existing graph, only the 5 shared latents are free, plus
+the small decode-to-input anchor decided with the user.
 """
 import os, sys, time, gc
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
@@ -26,14 +19,14 @@ from transformer_pcn_layer import AttentionPCNLayer, AddNormalizePCNLayer
 
 print("GPUs:", tf.config.list_physical_devices("GPU"))
 A_CROSS, A_GEN = 1.0, 2.0
-BETA, N_INFER, ALPHA = 0.05, 12, 1e-5
+REL_C, N_INFER = 0.05, 12                                # per-scale relaxation step = REL_C * dim_k (matches old per-element rate under MEAN)
 IMG_SHAPE = (1, 572, 572, 3); TXT_SHAPE = (1, 192, 512)
 CODE = 16; REC_HW = 64; DEC_SD = 1e-3
 
 t0 = time.time()
 m = EncoderEncoderPCN(1e-4)
-TXT = [l for l in m.trainable_layers if getattr(l, "share_state_layer", None) is not None]  # dense4,8,12,16,20
-IMG = [l.share_state_layer for l in TXT]                                                     # dense2,6,10,14,18
+TXT = [l for l in m.trainable_layers if getattr(l, "share_state_layer", None) is not None]
+IMG = [l.share_state_layer for l in TXT]
 DIMS = [l.num_units for l in IMG]; NS = len(DIMS)
 print(f"shared-latent dims: {DIMS}  (NS={NS})   model build {time.time()-t0:.1f}s")
 
@@ -47,7 +40,7 @@ def fwd(layer, xi, xt, memo):
         out = layer(fwd(layer.prev_layers[0], xi, xt, memo), fwd(layer.prev_layers[1], xi, xt, memo))
     elif isinstance(layer, (DensePCNLayer, Conv2DPCNLayer)):
         out = layer(fwd(layer.prev_layer, xi, xt, memo), set_state=False)
-    else:                                                # MaxPool, Flatten, Transpose, Positional, Attention
+    else:
         out = layer(fwd(layer.prev_layer, xi, xt, memo))
     memo[k] = out
     return out
@@ -56,7 +49,6 @@ def taps(xi, xt):
     memo = {}
     return [fwd(l, xi, xt, memo) for l in IMG], [fwd(l, xi, xt, memo) for l in TXT]
 
-# ---------- the small decode-to-input anchor (the ONLY new params) ----------
 def Wv(shape, sd=None):
     sd = (1.0 / np.sqrt(int(np.prod(shape[:-1])))) if sd is None else sd
     return tf.Variable(tf.random.normal(shape, stddev=sd), trainable=True)
@@ -68,109 +60,124 @@ DEC_VARS = PROJ + [W_DI, B_DI, W_DT, B_DT]
 def code_of(S):  return tf.concat([tf.nn.relu(S[k] @ PROJ[k]) for k in range(NS)], axis=1)
 def dec_img(S):  return tf.nn.sigmoid(code_of(S) @ W_DI + B_DI)
 def dec_txt(S):  return code_of(S) @ W_DT + B_DT
-def img_target(xi): return tf.reshape(tf.image.resize(xi, [REC_HW, REC_HW]), [tf.shape(xi)[0], -1])
-def txt_target(xt): return tf.reshape(xt, [tf.shape(xt)[0], -1])
-def se(eps): return tf.reduce_sum(tf.reshape(eps, [tf.shape(eps)[0], -1]) ** 2, axis=1)
-def energy_parts(S, it, tt, xi, xt):
-    cross = tf.add_n([se(S[k] - it[k]) + se(S[k] - tt[k]) for k in range(NS)])
-    gimg = se(dec_img(S) - img_target(xi)); gtxt = se(dec_txt(S) - txt_target(xt))
+
+# >>> THE NORMALIZATION FIX <<< per-ELEMENT MEAN squared error per edge (was reduce_sum over dims).
+def mse(eps):  return tf.reduce_mean(tf.reshape(eps, [tf.shape(eps)[0], -1]) ** 2, axis=1)
+
+def energy_parts(S, it, tt, IMG_T, TXT_T):
+    cross = tf.add_n([mse(S[k] - it[k]) + mse(S[k] - tt[k]) for k in range(NS)])   # each term is a per-element MSE
+    gimg = mse(dec_img(S) - IMG_T); gtxt = mse(dec_txt(S) - TXT_T)                 # decoder terms also per-element MSE
     F = 0.5 * tf.reduce_mean(A_CROSS * cross + A_GEN * (gimg + gtxt))
     return F, tf.reduce_mean(gimg), tf.reduce_mean(gtxt)
 
-# ===================== PHASE 0: build + one forward (shapes) =====================
+# ===================== PHASE 0: build + forward =====================
 xi = tf.constant(np.random.rand(*IMG_SHAPE).astype("float32"))
 xt = tf.constant(np.random.rand(*TXT_SHAPE).astype("float32") * 0.1)
-print("\n[Phase 0] one feed-forward (allocates all weights)...")
-t1 = time.time()
+print("\n[Phase 0] one feed-forward...")
 it0, tt0 = taps(xi, xt)
-print(f"  img taps {[tuple(t.shape) for t in it0]}\n  txt taps {[tuple(t.shape) for t in tt0]}  ({time.time()-t1:.1f}s)")
-try:
-    print(f"  peak after forward: {tf.config.experimental.get_memory_info('GPU:0')['peak']/1e9:.1f} GB")
-except Exception as e:
-    print("  mem n/a", e)
-
+print(f"  tap shapes ok: {[tuple(t.shape) for t in it0]}")
 MW = [getattr(l, a) for l in m.trainable_layers for a in ("wts", "b", "gamma", "beta")
       if isinstance(getattr(l, a, None), tf.Variable)]
 ALL_W = MW + DEC_VARS
-print(f"  trainable tensors {len(ALL_W)}  (~{sum(int(np.prod(v.shape)) for v in ALL_W)/1e9:.2f}B params; "
-      f"decoder adds {sum(int(np.prod(v.shape)) for v in DEC_VARS)/1e6:.1f}M)")
+print(f"  trainable tensors {len(ALL_W)}  (~{sum(int(np.prod(v.shape)) for v in ALL_W)/1e9:.2f}B params)")
+IMG_T = tf.constant(tf.reshape(tf.image.resize(xi, [REC_HW, REC_HW]), [1, -1]))   # decode targets (constants)
+TXT_T = tf.constant(tf.reshape(xt, [1, -1]))
 
-# ===================== 7a: relaxation descent (cheap: reuse taps as constants) =====================
-print("\n[7a] relaxation energy descent (S free, both inputs clamped, zero init -> must descend)")
+# ===================== relaxation (per-scale beta) =====================
+print("\n[relaxation] normalized F, per-scale beta = REL_C*dim_k, zero init -> must descend")
+betas = [REL_C * d for d in DIMS]
 itc = [tf.constant(t) for t in it0]; ttc = [tf.constant(t) for t in tt0]
 Sv = [tf.Variable(tf.zeros([1, DIMS[k]])) for k in range(NS)]
-Ftraj, GI, GT = [], [], []
+Ft, GI, GT = [], [], []
 for _ in range(N_INFER):
     with tf.GradientTape() as tp:
         for s in Sv: tp.watch(s)
-        f, gi, gt = energy_parts(Sv, itc, ttc, xi, xt)
+        f, gi, gt = energy_parts(Sv, itc, ttc, IMG_T, TXT_T)
     gs = tp.gradient(f, Sv)
-    for s, g in zip(Sv, gs): s.assign_sub(BETA * g)
-    Ftraj.append(float(f)); GI.append(float(gi)); GT.append(float(gt))
-mono = all(Ftraj[i + 1] <= Ftraj[i] * 1.0001 + 1e-3 for i in range(len(Ftraj) - 1))
-F_desc = Ftraj[-1] < Ftraj[0]
+    for k, (s, g) in enumerate(zip(Sv, gs)): s.assign_sub(betas[k] * g)
+    Ft.append(float(f)); GI.append(float(gi)); GT.append(float(gt))
+F_desc = Ft[-1] < Ft[0]; mono = all(Ft[i+1] <= Ft[i]*1.0001 + 1e-9 for i in range(len(Ft)-1))
 states_finite = all(bool(tf.reduce_all(tf.math.is_finite(s))) for s in Sv)
-print(f"  F: {Ftraj[0]:.4e} -> {Ftraj[-1]:.4e}   monotone_down={mono}  descends={F_desc}")
-print(f"  image-recon err {GI[0]:.3e}->{GI[-1]:.3e}   text-recon err {GT[0]:.3e}->{GT[-1]:.3e}   states_finite={states_finite}")
-Srelaxed = [tf.constant(s) for s in Sv]
-del itc, ttc, gs, Sv; gc.collect()
+print(f"  F: {Ft[0]:.4e} -> {Ft[-1]:.4e}  descends={F_desc} monotone={mono} states_finite={states_finite}")
+print(f"  CROSS-vs-DECODER balance:  image-recon MSE {GI[0]:.4e}->{GI[-1]:.4e}   text-recon MSE {GT[0]:.4e}->{GT[-1]:.4e}")
+S0 = tuple(tf.constant(s) for s in Sv)
+del itc, ttc, Sv, gs; gc.collect()
 
-# ============ MEMORY PROBE + L2 GRAD GUARD: exactly ONE forward+backward ============
-print("\n[MEMORY PROBE + L2 grad guard] one forward + one backward at the relaxed states (batch 1)...")
+# ===================== jit-compiled weight step (buffer reuse -> multi-step fits) =====================
+def first(pred): return next(v for v in MW if pred(v))
+def gidx(v): return next(i for i, w in enumerate(ALL_W) if w is v)
+GUARD = [("conv", gidx(first(lambda v: len(v.shape) == 4))),
+         ("transformer", gidx(first(lambda v: len(v.shape) == 2 and int(v.shape[1]) == 1536))),
+         ("img_head", gidx(IMG[0].wts)), ("txt_head", gidx(TXT[0].wts)),
+         ("img_decoder", gidx(W_DI)), ("txt_decoder", gidx(W_DT))]
+GIDX = [i for _, i in GUARD]
+
+@tf.function(jit_compile=True)
+def jit_step(xi, xt, S, lr):
+    with tf.GradientTape() as t:
+        t.watch(ALL_W)
+        it, tt = taps(xi, xt)                                # FULL forward inside the tape (L2)
+        cross = tf.add_n([mse(S[k] - it[k]) + mse(S[k] - tt[k]) for k in range(NS)])
+        F = 0.5 * tf.reduce_mean(A_CROSS * cross + A_GEN * (mse(dec_img(S) - IMG_T) + mse(dec_txt(S) - TXT_T)))
+    g = t.gradient(F, ALL_W)
+    gn = tf.stack([tf.norm(g[i]) for i in GIDX])
+    for w, gg in zip(ALL_W, g):
+        if gg is not None:
+            w.assign_sub(lr * gg)
+    mx = tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
+    return F, mx, gn
+
+# ---- MEMORY PROBE + NEW per-module grad magnitudes (lr=0 -> no weight change) ----
+print("\n[MEMORY PROBE + L2 grad guard] jit forward+backward at relaxed S (compiles on first call)...")
 try:
     tf.config.experimental.reset_memory_stats("GPU:0")
 except Exception:
     pass
 t2 = time.time()
-with tf.GradientTape() as t:
-    t.watch(ALL_W)                                       # model wts are trainable=False -> watch explicitly (L2)
-    it, tt = taps(xi, xt)                                # FULL forward recomputed INSIDE the tape (L2 silent-freeze guard)
-    F, _, _ = energy_parts(Srelaxed, it, tt, xi, xt)
-grads = t.gradient(F, ALL_W)
+F0, mx0, gn0 = jit_step(xi, xt, S0, tf.constant(0.0))
+F0 = float(F0); gn0 = gn0.numpy()
 try:
     peak = tf.config.experimental.get_memory_info("GPU:0")["peak"] / 1e9
 except Exception:
     peak = float("nan")
-print(f"  F={float(F):.4e}   fwd+bwd {time.time()-t2:.1f}s   PEAK {peak:.1f} GB / 80 GB")
-
-def first(pred): return next(v for v in MW if pred(v))
-def gidx(v): return next(i for i, w in enumerate(ALL_W) if w is v)
-guard = {
-    "conv_tower":     gidx(first(lambda v: len(v.shape) == 4)),
-    "transformer":    gidx(first(lambda v: len(v.shape) == 2 and int(v.shape[1]) == 1536)),  # transformer1 kqv (3*512)
-    "img_head_dense": gidx(IMG[0].wts), "txt_head_dense": gidx(TXT[0].wts),
-    "img_decoder":    gidx(W_DI),       "txt_decoder":    gidx(W_DT),
-}
-print("  L2 GRAD GUARD (per module):")
+print(f"  F={F0:.4e}  compile+run {time.time()-t2:.1f}s  PEAK {peak:.1f} GB / 80 GB")
+print("  NEW per-module grad magnitudes (normalized F):")
 guard_ok = True
-gnorms = {}
-for name, i in guard.items():
-    g = grads[i]
-    if g is None:
-        print(f"    {name:16s} grad=None -> FROZEN MODULE"); guard_ok = False; continue
-    gn = float(tf.norm(g)); fin = bool(np.isfinite(gn)); nz = gn > 0; gnorms[name] = gn
-    print(f"    {name:16s} |grad|={gn:.3e}  finite={fin} nonzero={nz}")
+for (name, _), v in zip(GUARD, gn0):
+    fin = bool(np.isfinite(v)); nz = v > 0
+    print(f"    {name:14s} |grad|={v:.4e}  finite={fin} nonzero={nz}")
     guard_ok &= fin and nz
+spread = float(np.max(gn0) / (np.min(gn0) + 1e-30))
+print(f"  grad spread across modules = {spread:.1f}x   (was ~1e5-1e6 unnormalized)")
 if not guard_ok:
-    raise RuntimeError("L2 grad guard FAILED: a module is frozen (None) or has zero/nonfinite gradient.")
+    raise RuntimeError("grad guard FAILED (None/zero/nonfinite).")
 
-# one SGD step is takeable (then free grads); checks weights stay finite
-for v, g in zip(ALL_W, grads):
-    if g is not None:
-        v.assign_sub(ALPHA * g)
-wts_finite = all(bool(tf.reduce_all(tf.math.is_finite(v))) for v in (MW[:3] + DEC_VARS))
-del grads; gc.collect()
-print(f"  one SGD step applied; sampled weights finite = {wts_finite}")
+# ---- multi-step confirmation + LR sweep (frozen-vs-explode) ----
+print("\n[LR sweep] multi-step (jit buffer reuse); per lr ~18 steps; weights MOVE off init AND stay BOUNDED?")
+cw = first(lambda v: len(v.shape) == 4); cw_init = tf.identity(cw)
+results = []
+for lr in [1e-4, 1e-3, 1e-2]:
+    lr_t = tf.constant(lr, tf.float32); mxs = []
+    for _ in range(18):
+        _, mx, _ = jit_step(xi, xt, S0, lr_t); mxs.append(float(mx))
+    moved = float(tf.norm(cw - cw_init) / (tf.norm(cw_init) + 1e-9))     # cumulative since init
+    bounded = bool(np.isfinite(mxs[-1])) and mxs[-1] < 1e3
+    results.append((lr, mxs[0], mxs[-1], moved, bounded))
+    print(f"  lr={lr:.0e}: max|w| {mxs[0]:.3e} -> {mxs[-1]:.3e}   conv moved(cum)={moved:.2e}   bounded={bounded}")
+bounded_lrs = [r[0] for r in results if r[3] > 1e-6 and r[4]]
+largest = max(bounded_lrs) if bounded_lrs else None
+multistep_ok = len(results) == 3       # got through all sweeps without OOM
+print(f"  multi-step ran without OOM: {multistep_ok}")
+print(f"  largest moving-and-bounded lr: {largest:.0e}" if largest else "  no lr both moved AND stayed bounded")
 
-verdict = "7a PASS" if (F_desc and states_finite and guard_ok and wts_finite) else "7a NEEDS REVIEW"
-print(f"\n==== {verdict} ====")
-print(f"  memory peak (fwd+bwd, batch1) : {peak:.1f} GB / 80 GB  (fits; checkpointing not needed at batch 1)")
-print(f"  relaxation energy descends    : {F_desc}  ({Ftraj[0]:.3e}->{Ftraj[-1]:.3e}), monotone={mono}")
-print(f"  both recon dirs improve       : image {GI[0]:.2e}->{GI[-1]:.2e}, text {GT[0]:.2e}->{GT[-1]:.2e}")
-print(f"  states finite / weights finite: {states_finite} / {wts_finite}")
-print(f"  L2 grad guard (all 6 modules) : {guard_ok}")
+print("\n==== PRE-7b SUMMARY ====")
+print(f"  normalization: per-element MEAN per edge (was sum over dims)")
+print(f"  memory peak (jit fwd+bwd, batch1): {peak:.1f} GB / 80 GB")
+print(f"  relaxation F descends: {F_desc} ({Ft[0]:.3e}->{Ft[-1]:.3e})  states finite: {states_finite}")
+print(f"  NEW grad magnitudes: {[f'{v:.2e}' for v in gn0]}  spread {spread:.1f}x  (guard_ok={guard_ok})")
+print(f"  decoder now contributing: image-recon {GI[0]:.3e}->{GI[-1]:.3e}, text-recon {GT[0]:.3e}->{GT[-1]:.3e}")
+print(f"  LR sweep: " + "; ".join(f"{r[0]:.0e}->bounded={r[4]},moved={r[3]:.1e}" for r in results))
+print(f"  largest moving-and-bounded lr = {largest}")
+print(f"  multi-step (jit) fits = {multistep_ok}")
 print(f"  total wall-clock {time.time()-t0:.1f}s")
-print("NOTE: only ONE eager backward fits (two fragment the pool -> OOM on the 8.26GB inter9 grad).")
-print("      Multiple weight steps need jit_compiled buffer reuse (the PORT_PLAN jit step) -- next up.")
-print("      Cross-modal generation (free a raw input through the deep encoder) is a 7c item.")
-print("STOP per hard-stop rule (no 7b/7c/7d).")
+print("HARD STOP (no 7b/7c/7d).")
