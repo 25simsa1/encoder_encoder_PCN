@@ -27,11 +27,11 @@ from transformer_pcn_layer import AttentionPCNLayer, AddNormalizePCNLayer
 print("GPUs:", tf.config.list_physical_devices("GPU"), flush=True)
 WORK = "/workspace/coco7c"; CKPT = os.environ.get("CKPT_DIR", "/root/ckpt7c")  # LOCAL disk (overlay, fast); the /workspace net-FS 31GB write (~11min) killed prior runs
 A_CROSS, A_GEN = 1.0, 2.0
-REL_C, N_INFER, LR = 0.05, 8, 1e-3
+REL_C, N_INFER = 0.05, 8; LR = float(os.environ.get("LR", "1e-3"))   # 1e-3 destabilized the relaxation past ~1000 steps; 5e-4 is safer for a long run
 CODE = 16; REC_HW = 64; DEC_SD = 1e-3
 TRAIN_S = float(os.environ.get("TRAIN_MIN", "85")) * 60
 DO_CKPT = os.environ.get("DO_CKPT", "1") == "1"          # the 31GB ckpt on the network FS is ~11min/write and killed prior runs; allow disabling
-CKPT_EVERY = 25 * 60; LOG_EVERY = 50; GEN_INFER = 25
+CKPT_EVERY = 10 * 60; LOG_EVERY = 50; GEN_INFER = 25
 t0 = time.time()
 
 # ---- data ----
@@ -126,7 +126,7 @@ try:
         F, mxw, sg = weight_step(X, TOK, tuple(tf.constant(s) for s in Sv), igt, tgt, tf.constant(LR, tf.float32))
         F = float(F); mxw = float(mxw); mxs = max(float(tf.reduce_max(tf.abs(s))) for s in Sv)
         Fhist.append(F); step += 1; step_v.assign(step)
-        if (not np.isfinite(F)) or (not np.isfinite(mxw)) or mxw > 1e3 or (len(Fhist) > 10 and F > 8 * min(Fhist) + 1):
+        if (not np.isfinite(F)) or (not np.isfinite(mxw)) or (not np.isfinite(mxs)) or mxw > 1e3 or mxs > 1e2:   # weight/state blow-up only; F bounces per-pair
             diverged = True
             print(f"  !! DIVERGENCE step {step}: F={F:.3e} max|w|={mxw:.3e} max|state|={mxs:.3e} -> STOP", flush=True)
             (mgr.save() if DO_CKPT else None); break
