@@ -145,11 +145,16 @@ for lr in LRS:
         try: peak = tf.config.experimental.get_memory_info("GPU:0")["peak"] / 1e9
         except Exception: pass
     seg_moved = float(tf.norm(cw - cw0) / (tf.norm(cw0) + 1e-9))
-    bounded = all(np.isfinite(v) and v < 1e3 for v in mxs)
+    F_bounded = all(np.isfinite(v) for v in Fs) and (max(Fs) < 50.0 * Fs[0] + 1.0)   # F must not blow up
+    w_bounded = all(np.isfinite(v) and v < 1e3 for v in mxs)
+    bounded = F_bounded and w_bounded
     F_down = (len(Fs) >= 2) and (np.mean(Fs[-3:]) < np.mean(Fs[:3]))
     results.append((lr, Fs[0], Fs[-1], seg_moved, bounded, min(trmin), max(trmax), F_down, len(Fs)))
     print(f"  lr={lr:.0e}: F {Fs[0]:.3e}->{Fs[-1]:.3e} F_down={F_down}  conv_moved={seg_moved:.2e}  bounded={bounded}  "
           f"trust[{min(trmin):.1e},{max(trmax):.1e}]  steps={len(Fs)}")
+    if not bounded:                                       # increasing lr; stop so exploded weights don't contaminate higher lrs
+        print("  -> diverged; stopping sweep (sequential, would contaminate higher-lr segments)")
+        break
 
 moving_and_bounded = [r[0] for r in results if r[3] > 1e-3 and r[4]]
 largest = max(moving_and_bounded) if moving_and_bounded else None
