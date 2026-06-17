@@ -9,6 +9,16 @@ cuda_malloc_async. The sweep does PROPER relax-then-step (re-relax S each weight
 
 LARS step (per trainable variable):  trust = ||var|| / (||g|| + 1e-6);  var -= lr * trust * g
 so each variable's update has norm lr*||var|| -> a uniform RELATIVE step ~lr regardless of ||g||.
+
+RESULT (pre-7b, A100 80GB): LARS FINDS a moving-and-bounded-and-LEARNING lr that plain SGD could not.
+At lr=1e-3 the conv moves 2e-2 (meaningful), max|w| stays bounded over 22 relax-then-step iterations,
+AND the post-relaxation F trends DOWN 1.92 -> 0.83 (real optimization). Plain SGD on the same
+normalized energy found NONE (frozen at 1e-5, NaN at 1e-4). lr=1e-2 diverges (F 0.94 -> 4.6e3), so the
+stable LARS range is narrow (<= 1e-3) but it EXISTS and learns. Memory 62 GB graph-mode, multiple
+steps fit. Caveats: trust spread is wide [0, ~1e8] -- zero-initialized biases get trust=0 and never
+update (a LARS pathology, biases stay frozen), while the RELATIVE step is uniform ~lr for nonzero-norm
+vars; and the sweep re-relaxes S each step but is sequential. Bottom line: the conditioning fix works
+(SGD's frozen-vs-explode becomes a usable lr=1e-3 learning regime); 7b should use LARS at lr~1e-3.
 """
 import os, sys, time, gc
 os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
