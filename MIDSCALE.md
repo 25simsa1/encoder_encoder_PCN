@@ -184,3 +184,45 @@ collapse into one (undertraining), with no separate dying-unit caveat.
 Honest limits: single seed per cell; 2500 steps (leaky's recognizability is still climbing at this
 budget — see its 4000-step datapoint above); 50.5M / MNIST / batch-1 / CPU. GELU's retrieval 0.70 is the
 strongest generation in any run here but should be confirmed with more seeds/steps before headline use.
+
+---
+
+## Addendum 2 — confirmatory multi-seed replication of the headline GELU result
+
+The retrieval-0.70 GELU number was one seed at 2500 steps. Before it goes in the paper, replicated with
+**GELU and leaky-ReLU at lr=2e-2, full 4000 steps, 3 independent seeds each** (seed drives weight init,
+the MNIST subset, the captions, and the train order — fully independent replicates), `midscale_seeds.py`,
+~70 min CPU. Chance retrieval = 0.016.
+
+| activation | seed | weight move | text→img diversity | **text→img retrieval** | recon | img→text |
+|:--|:--|--:|--:|--:|--:|--:|
+| GELU | 0 | 226% | 0.464 | 0.891 | 0.017 | 0.672 |
+| GELU | 1 | 146% | 0.542 | 0.844 | 0.012 | 0.805 |
+| GELU | 2 | 163% | 0.521 | 0.938 | 0.012 | 0.818 |
+| **GELU** | **mean ± std** | 178 ± 35% | **0.509 ± 0.033** | **0.891 ± 0.038** | 0.014 | 0.765 |
+| leaky | 0 | 199% | 0.174 | 0.031 (≈chance) | 0.052 | 0.141 |
+| leaky | 1 | 263% | 0.370 | 0.531 | 0.032 | 0.365 |
+| leaky | 2 | 365% | 0.478 | 0.609 | 0.022 | 0.498 |
+| leaky | **mean ± std** | 275 ± 68% | 0.341 ± 0.126 | **0.391 ± 0.256** | 0.035 | 0.335 |
+
+Best-GELU-seed samples: `seeds_gelu_grid.png`. Raw: `seeds_results.json`.
+
+### Verdict — REPLICATES
+
+**GELU's recognizable generation replicates robustly: retrieval 0.89 ± 0.04 across 3 independent seeds
+(every seed ≥ 0.84 = 54× chance), diversity 0.51 ± 0.03.** This is the number for the paper. It is *not*
+a one-seed fluke — and it is *stronger* than the single 2500-step seed (0.70), because at the full 4000
+steps the model is better trained. Variance across seeds is low.
+
+**GELU is genuinely more sample-efficient and more reliable than leaky-ReLU at matched budget.** At 4000
+steps leaky reaches only 0.39 ± 0.26 and is **bimodal/unreliable** — one seed failed at chance (0.031),
+the others reached ~0.6. So leaky does *not* cleanly catch up given the steps; GELU wins on both mean and
+variance. (Caveat on the per-cell "DEAD" tag in the script: the `tap_std < 1e-2` threshold is calibrated
+to ReLU's hard-zero death and mislabels leaky's low-but-nonzero tap variance; leaky units do not hard-die
+— leaky's failure mode here is generation *variance*, not unit death.)
+
+**Net for the paper:** GELU is the activation. With it, the mid-scale bidirectional design generates
+recognizably and reproducibly (retrieval 0.89 ± 0.04, ~54× chance), with no dying-unit fragility — so the
+clean single-axis story holds: the 7.7B mush was undertraining (weights must move), and at an appropriate
+LR with a smooth activation the architecture generates. Honest limits unchanged: 50.5M / MNIST / batch-1 /
+CPU, 64-pair memorization; this establishes capability and reproducibility, not at-7.7B-scale generation.
