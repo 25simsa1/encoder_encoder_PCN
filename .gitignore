@@ -6,3 +6,4 @@ LIT_REVIEW.md
 dissoc_run.log
 __pycache__/
 midscale_run.log
+actgrid_run.log

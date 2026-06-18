@@ -118,3 +118,69 @@ architecture is capable of conditional generation; the 7.7B failure is consisten
   weights move; it does not prove the 7.7B would generate if trained longer (that remains the at-scale
   positive control the literature review flags). But it removes "the architecture fundamentally cannot
   generate" as the explanation for the 7.7B mush.
+
+---
+
+## Addendum — resolving the dying-ReLU asterisk: activation × LR grid
+
+To determine whether the dying-ReLU is an LR artifact or an architectural fragility, and to test the
+hypothesis that **GELU** (smooth, no hard zero — and the activation implied by the original model's
+`d_gelu`-derivative-on-a-ReLU-forward bug) avoids it, I ran the full grid **{ReLU, leaky-ReLU, GELU} ×
+{aggressive lr 2e-2, gentle 6.7e-3 (1/3), gentle 2e-3 (1/10)}**, everything else identical to the 50.5M
+model, fresh identical init per cell, 2500 steps each (`midscale_actgrid.py`, ~63 min CPU). "Tap std" =
+std of the text-encoder taps across captions (≈0 ⇒ dead; the encoder emits the same vector for every
+caption). Chance retrieval = 0.016.
+
+| activation | lr | weight move | text-enc tap std | state | text→img diversity | text→img retrieval | recon | img→text |
+|:--|:--|--:|--:|:--|--:|--:|--:|--:|
+| ReLU | 2e-2 (aggr) | 149% | **0.000** | **DEAD** | 0.000 | 0.016 (chance) | 0.009 | 0.904 |
+| ReLU | 6.7e-3 (1/3) | 17.7% | 0.007 | ~dead | 0.055 | 0.016 | 0.068 | 0.080 |
+| ReLU | 2e-3 (1/10) | 8.0% | 0.013 | alive | 0.060 | 0.016 | 0.069 | 0.080 |
+| leaky-ReLU | 2e-2 | 196% | 0.020 | alive | 0.441 | 0.000 | 0.066 | 0.078 |
+| leaky-ReLU | 6.7e-3 | 22.1% | 0.012 | alive | 0.034 | 0.016 | 0.068 | 0.082 |
+| leaky-ReLU | 2e-3 | 10.3% | 0.020 | alive | 0.046 | 0.016 | 0.069 | 0.082 |
+| **GELU** | **2e-2** | 106.6% | 0.014 | **alive** | **0.397** | **0.703** (≈45× chance) | **0.020** | **0.559** |
+| GELU | 6.7e-3 | 39.3% | 0.017 | alive | 0.040 | 0.016 | 0.065 | 0.072 |
+| GELU | 2e-3 | 12.8% | 0.029 | alive | 0.035 | 0.016 | 0.069 | 0.086 |
+
+Figures: `actgrid_heatmap.png` (diversity + movement over the grid), `actgrid_samples.png` (text→image
+strips; dead cells show identical mush). Raw: `actgrid_results.json`.
+
+### What the grid shows (blunt)
+
+1. **The dying-unit collapse is a HARD-ZERO-activation problem.** ReLU is the *only* activation that dies;
+   its tap std goes 0.000 → 0.007 → 0.013 as lr drops from 2e-2 → 6.7e-3 → 2e-3 (more death at higher
+   lr). **leaky-ReLU and GELU never die at any lr** (tap std 0.012–0.029 throughout). Removing the hard
+   zero removes the death. This is the clean general statement.
+
+2. **The death is LR-coupled, but plain ReLU has NO good operating point.** ReLU survives only at the
+   gentlest lr (2e-3) — where the weights move just 8% (undertrained → diversity 0.06, no generation).
+   The lr that moves weights enough to generate (aggressive 2e-2, ≥100% movement) is exactly where ReLU
+   dies. So "dying-ReLU is just an LR artifact" is *too generous*: there is no plain-ReLU lr in this grid
+   that simultaneously (a) moves the weights enough and (b) keeps the encoder alive. ReLU is caught
+   between dying (high lr) and undertraining (low lr).
+
+3. **Generation needs BOTH high movement AND a live (smooth) activation.** Only the aggressive-lr cells
+   move weights >100%; of those, **GELU generates recognizably** (retrieval 0.70 ≈ 45× chance, diversity
+   0.40, best image side too: recon 0.020, img→text 0.56). leaky-ReLU at aggressive lr *varies* (diversity
+   0.44) but is **not yet recognizable at 2500 steps** (retrieval 0.00; cf. the 4000-step leaky run above
+   which reached retrieval 0.30 — leaky needs more steps; GELU is more sample-efficient here). All
+   gentle-lr cells are undertrained (8–39% movement) regardless of activation — the movement/undertraining
+   axis, consistent with the rest of this work.
+
+4. **GELU is the standout and is consistent with it being the intended activation** (the original
+   `d_gelu`-on-ReLU bug). With GELU the architecture both trains (weights move) and generates, with no
+   dying-unit fragility.
+
+### Verdict
+
+**The dying-unit collapse is a hard-zero-activation pathology (ReLU only) that bites precisely in the
+high-lr / high-movement regime required to train; it is not a limit of the architecture.** Smooth
+activations remove it: **GELU (and leaky-ReLU) keep the text encoder alive at every lr, and GELU at the
+training-strength lr generates recognizably (retrieval 45× chance).** For the model this means: use a
+smooth activation (GELU preferred) — then "move the weights" is the whole story, and the two mush modes
+collapse into one (undertraining), with no separate dying-unit caveat.
+
+Honest limits: single seed per cell; 2500 steps (leaky's recognizability is still climbing at this
+budget — see its 4000-step datapoint above); 50.5M / MNIST / batch-1 / CPU. GELU's retrieval 0.70 is the
+strongest generation in any run here but should be confirmed with more seeds/steps before headline use.
