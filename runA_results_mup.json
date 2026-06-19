@@ -1,0 +1,35 @@
+{
+  "_source": "Reconstructed from the run's captured stdout. The RunPod A100-80GB pod (185.216.21.214:35224) was terminated before the original /root/runA_results_mup.json could be scp'd back. All numbers below are verbatim from the streamed runA_mup.log output of run_A_scale_mup.py (committed 3ae39ad), RUNA_PARAM=mup RUNA_SIZES=1,3.2,7.8 RUNA_STEPS=1500 RUNA_N=64 RUNA_CKPT=/root.",
+  "config": {"param": "mup", "seed": 0, "N": 64, "steps": 1500, "sizes": [1.0, 3.2, 7.8], "base_wmul": 1.0, "lr": 0.02, "smoke": false, "chance": 0.015625},
+  "part1": [
+    {"tag": "p1_w1.0_mup",  "wmul": 1.0, "mode": "mup", "lr": 0.02, "steps": 1500, "params_M": 5.54,   "DM": 128, "DIMS": [768, 768, 512, 512],      "m": 1.0, "move": 1.553, "retr": 0.109, "diversity": 0.290, "diverged": false, "band": "useful",         "secs": 321, "ckpt_secs": 0.0},
+    {"tag": "p1_w3.2_mup",  "wmul": 3.2, "mode": "mup", "lr": 0.02, "steps": 1500, "params_M": 55.52,  "DM": 408, "DIMS": [2458, 2458, 1638, 1638],  "m": 3.2, "move": 0.563, "retr": 0.125, "diversity": 0.202, "diverged": false, "band": "useful",         "secs": 321, "ckpt_secs": 0.2},
+    {"tag": "p1_w7.8_mup",  "wmul": 7.8, "mode": "mup", "lr": 0.02, "steps": 1500, "params_M": 330.20, "DM": 996, "DIMS": [5990, 5990, 3994, 3994],  "m": 7.8, "move": 0.287, "retr": 0.078, "diversity": 0.189, "diverged": false, "band": "collapse-break", "secs": 345, "ckpt_secs": 1.6}
+  ],
+  "part1_undertraining_onset": "not reached in [5.5M, 330M] at 1500 steps (movement<22% or retr<5x-chance threshold not crossed); 330M sits at the collapse-break edge -> go larger to find clean onset",
+  "part2": {
+    "tuned_lr": 0.02,
+    "small_wmul": 1.0,
+    "small_sweep": [
+      {"lr": 0.005, "move": 0.181, "retr": 0.016, "band": "undertrain"},
+      {"lr": 0.01,  "move": 0.295, "retr": 0.016, "band": "collapse-break"},
+      {"lr": 0.02,  "move": 0.626, "retr": 0.016, "band": "useful"},
+      {"lr": 0.04,  "move": 1.520, "retr": 0.078, "band": "useful"}
+    ],
+    "small_chosen": {"lr": 0.02, "move": 0.626},
+    "large_wmul": 7.8,
+    "large_mup": {"wmul": 7.8, "mode": "mup", "lr": 0.02, "params_M": 330.20, "move": 0.276, "retr": 0.125, "diversity": 0.199, "diverged": false, "band": "collapse-break"},
+    "large_sp":  {"wmul": 7.8, "mode": "sp",  "lr": 0.02, "params_M": 330.20, "move": 0.670, "retr": 0.391, "diversity": 0.436, "diverged": false, "band": "useful"}
+  },
+  "verdict": {
+    "mup_transfers": true,
+    "sp_transfers": true,
+    "headline": "Both muP and SP transfer the tuned small-model LR (2e-2) to 330M without divergence; SP is stronger (move 67% / retr 0.391 vs muP 28% / retr 0.125). Plain LARS already gives width-stable movement, so it is the lever; muP's m^-0.5 scaling under-moves the large model and does NOT earn its keep at <=330M on this task. Next runs: lean on LARS/SP, not muP.",
+    "fits_80GB": true,
+    "per_run_secs_approx": "321-345s for a 1500-step run, ~size-independent (batch-1 is kernel-launch-bound, not compute-bound)"
+  },
+  "sp_part1_partial": {
+    "_note": "The separate RUNA_PARAM=sp run was stopped after its first size (per instruction; its PART 2 is redundant with part2 above, which already ran both muP and SP transfers).",
+    "p1_w1.0_sp": {"wmul": 1.0, "params_M": 5.54, "move": 1.041, "retr": 0.062, "diversity": 0.255, "band": "useful"}
+  }
+}
