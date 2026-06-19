@@ -226,3 +226,97 @@ recognizably and reproducibly (retrieval 0.89 ± 0.04, ~54× chance), with no dy
 clean single-axis story holds: the 7.7B mush was undertraining (weights must move), and at an appropriate
 LR with a smooth activation the architecture generates. Honest limits unchanged: 50.5M / MNIST / batch-1 /
 CPU, 64-pair memorization; this establishes capability and reproducibility, not at-7.7B-scale generation.
+
+---
+
+## Addendum 3 — staged pretraining vs from-scratch, on REAL image–text
+
+**Question (a different lever from the activation work above):** does pretraining the image and text
+branches *separately as autoencoders* first, then assembling + sharing latents + joint-training,
+generate **better or faster** than training the same model jointly from scratch? This is the cheap
+mid-scale test of staged pretraining before betting it on the 7.7B at-scale positive control.
+
+**Verdict (blunt): NO — staged pretraining does NOT help, and the autoencoder features *fight* the
+cross-modal coupling at assembly. A null/negative result, reported as one (2 seeds).** At matched
+seed/init/params/total-budget, the staged arm is **equal-or-worse than from-scratch on every metric**,
+and the mechanism is unambiguous: independently trained AEs learn good *unimodal* features that are
+**not cross-modally aligned** (tap-alignment at assembly = chance), so when the branches are first
+forced to share a latent the joint energy *explodes* (Arm B's first joint-phase F ≈ **3.4e3 (seed 0) /
+1.2e7 (seed 1)** vs Arm A's ~0.17) and the short joint phase spends its budget reconciling that
+mismatch instead of building the coupling — ending *more collapsed* than from-scratch.
+
+**Data — real images + real WORD text (not MNIST / digit tokens):** CIFAR-100, **one image per fine
+class (N=100 distinct 32×32×3 natural images)**, each captioned with its real class name,
+`"a photo of a {class}"` (char-level one-hot, T=26, V=27). COCO was the stated preference but its path
+(241 MB annotation zip + per-image scraping) is too heavy/risky for a hard CPU time-box and would
+starve the two training arms; CIFAR-100-one-per-class still gives genuinely **distinct** real images
+each paired with a **distinct real-word** caption (CIFAR-10's repeated class captions would be unusable
+for retrieval). Chance retrieval = 0.010. `midscale_staged.py`, CPU, ~15 min/seed.
+
+**Two arms, matched on everything except staging** (same seed → identical init, same params, same total
+step budget; only the procedure differs):
+- **Arm A — from scratch:** assemble the full bidirectional model, joint-train from random init, 3000 steps.
+- **Arm B — staged:** Phase 1 image-AE (1000 steps, image enc+dec only), Phase 2 text-AE (1000 steps,
+  text enc+dec only), Phase 3 assemble + joint-train (1000 steps). Total = 3000, matching Arm A.
+
+Recipe identical to the validated model above (GELU, lr=2e-2, one energy F, LARS + bias floor,
+relax(8)-then-step, dense per-scale anchors, A_GEN=2.0 ≥ A_CROSS=1.0). 62.5M params (slightly larger
+than the MNIST model: 3-channel 32×32 input).
+
+### Results (per seed; raw in `midscale_staged_results_seed{0,1}.json`)
+
+| metric | **A (scratch)** s0 / s1 | **B (staged)** s0 / s1 |
+|:--|--:|--:|
+| text→image retrieval (chance 0.010) | 0.010 / 0.020 | 0.010 / 0.010 |
+| **text→image diversity** (varies by caption?) | **0.335 / 0.301** | 0.071 / 0.125 (more collapsed) |
+| image→image recon MSE | **0.0315 / 0.0331** | 0.0487 / 0.0468 (worse) |
+| image→text token acc | 0.792 / 0.793 | 0.779 / 0.759 |
+| weight movement overall | 82% / 77% | 86% / 81% |
+| **Phase-3 joint F at start** | (0.17 / 0.18) | **3.4e3 / 1.2e7** |
+| cross-modal tap-alignment @ assembly (chance 0.010) | — | **0.010 / 0.010** |
+
+Grids: `midscale_staged_grid.png` (seed 0; rows = target / A txt→img / B txt→img / A img→img / B
+img→img), `midscale_staged_grid_seed1.png`.
+
+### The key diagnostic — do the AE features help or fight?
+
+1. **They do NOT pre-align the modalities.** Cross-modal tap-alignment (does each caption's text-tap
+   retrieve its own image-tap?) at assembly = **0.010 = chance** for both seeds — identical to random
+   init — even though the image-AE reconstructs (recon 0.043–0.065) and the text-AE works (token-acc
+   0.77–0.78). The AEs learn good *within-modality* features with *zero* cross-modal correlation. This
+   is exactly the pre-registered risk: AE features are tuned for reconstruction, not for the coupling.
+
+2. **They fight at assembly.** Because the branches are independently specialized, forcing them to
+   share a latent produces an enormous energy mismatch — **Arm B's first joint-phase F ≈ 3.4e3 (seed 0)
+   to 1.2e7 (seed 1)** vs Arm A's ~0.17. The 1000-step joint phase then burns its budget crushing that
+   mismatch rather than learning the coupling, and ends **more collapsed** (diversity 0.07–0.13) than
+   from-scratch (0.30–0.34).
+
+3. **The pretraining is net wasted.** Arm A (no image-AE) reaches **better** final image recon
+   (0.032) than staged Arm B (0.047), so the dedicated image-AE phase bought no final-recon advantage;
+   the 2000 AE steps would have been better spent on joint training, as Arm A demonstrates. (For
+   accuracy: the image-AE recon is *internally* preserved through Arm B's joint phase — 0.066→0.047 on
+   seed 1 — so the "fight" is in the **cross-modal coupling**, not in the joint phase destroying
+   unimodal recon.)
+
+### Honest caveats
+
+- **Both arms were below the recognizability bar:** text→image retrieval was at/near chance
+  (0.010–0.020) for *both* — real CIFAR-100 RGB at 3000 CPU steps is far harder than the MNIST regime
+  where this recipe reached retrieval 0.89. So this is "staged vs scratch, both blobby," and the
+  comparison rests on the **secondary** signals (diversity, recon, alignment, assembly energy), which
+  uniformly favor from-scratch. The diversity gap (A ≈0.32 vs B ≈0.10) and the 10³–10⁷× assembly-energy
+  mismatch are the load-bearing evidence, not the floored retrieval.
+- 2 seeds, 3000 steps, 62.5M, CPU, N=100 memorization. Establishes direction, not a tuned ceiling.
+- This tests **staged AE-pretraining as specified** (independent unimodal AEs → assemble). It does
+  *not* rule out staged schemes that pretrain the *coupling itself* (e.g. a cross-modal
+  contrastive/InfoNCE warm-up), which would by construction align the very taps the unimodal AEs leave
+  at chance.
+
+### Net for the 7.7B
+
+**Staged AE-pretraining alone is not the at-scale fix.** It gives no cross-modal head start (the AEs
+leave the modalities unaligned) and creates an assembly-time energy mismatch the joint phase must undo.
+The earlier finding stands as the live lever: the 7.7B mush was **undertraining** (the weights must
+*move*, with a smooth activation). If a warm-start is still wanted, it must pretrain the cross-modal
+**coupling**, not the two modalities in isolation.
