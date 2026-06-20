@@ -337,7 +337,7 @@ def run_arm(name, do_warmup, joint_steps, jointw):
     if do_warmup: warmup_phase(WARMUP)
     Fhist,diverged=joint_phase(joint_steps, jointw)
     move=movement(P,P_init); elapsed=(time.time()-t0)/60
-    try: np.savez(os.path.join(CKPT,f"coup_{name}.npz"), **{k:P[k].numpy() for k in P})
+    try: np.savez(os.path.join(CKPT,f"coup_{name}_seed{SEED}.npz"), **{k:P[k].numpy() for k in P})
     except Exception: pass
     if diverged: return dict(name=name,diverged=True,move=move,elapsed=elapsed), None
     m_tr,_=readouts(tr_idx); m_ev,t2i_ev=(readouts(ev_idx) if NEV else (None,None))
@@ -362,13 +362,13 @@ if NEV and (t2iA is not None) and (t2iB is not None):
     ra=resA['heldout']['retr'] if resA and not resA['diverged'] else float('nan')
     rb=resB['heldout']['retr'] if resB and not resB['diverged'] else float('nan')
     plt.suptitle(f"InfoNCE warm-up, HELD-OUT text->image (UNSEEN). A retr {ra:.3f} vs B retr {rb:.3f} (chance {1/NEV:.4f})",fontsize=9)
-    plt.tight_layout(); plt.savefig(os.path.join(HERE,"infonce_warmup_grid.png"),dpi=120); plt.close()
+    plt.tight_layout(); plt.savefig(os.path.join(HERE,f"infonce_warmup_grid_seed{SEED}.png"),dpi=120); plt.close()
 
 dump=dict(config=dict(smoke=SMOKE,N_have=N_HAVE,N_train=NTR,N_eval=NEV,RES=RES,CAPLEN=CAPLEN,V=V,wmul=WMUL,params=NP,
                       lr=LR,warmup=WARMUP,joint=JOINT,batch=BATCH,temp=TEMP,control=CONTROL,jointw=JOINTW,seed=SEED),
           arm_A=resA,arm_B=resB,arm_A_long=resL,
           i2t_base_train=i2t_base_on(tr_idx),i2t_base_eval=(i2t_base_on(ev_idx) if NEV else None))
-with open(os.path.join(HERE,"infonce_warmup_results.json"),"w") as fh: json.dump(dump,fh,indent=2)
+with open(os.path.join(HERE,f"infonce_warmup_results_seed{SEED}.json"),"w") as fh: json.dump(dump,fh,indent=2)
 
 # ============================ VERDICT (HELD-OUT only) ============================
 print(f"\n==================== InfoNCE WARM-UP VERDICT (held-out only) ====================",flush=True)
@@ -389,5 +389,5 @@ else:
         print(f"VERDICT: BOTH ABOVE CHANCE -- A unexpectedly matched too (A {resA['heldout']['hits']}/{NEV}, B {resB['heldout']['hits']}/{NEV}). Re-examine the baseline; warm-up effect not isolated.{ctl}",flush=True)
     else:
         print(f"VERDICT: WARM-UP DOES NOT CRACK IT -- held-out text->image still not above chance (A {resA['heldout']['hits']}/{NEV}, B {resB['heldout']['hits']}/{NEV}, bar >{int(3)} hits). At this scale/budget the coupling warm-up is insufficient. Honest scope -> workshop. Mechanism check: alignment delta cos {da:+.3f} ({'B aligned more (mechanism worked but not sufficient)' if da>0 else 'B did NOT align more -- warm-up washed out in joint; try RUNS1_JOINTW>0'}).",flush=True)
-print(f"saved: infonce_warmup_grid.png, infonce_warmup_results.json | ckpt {CKPT}",flush=True)
+print(f"saved: infonce_warmup_grid_seed{SEED}.png, infonce_warmup_results_seed{SEED}.json | ckpt {CKPT}/coup_*_seed{SEED}.npz",flush=True)
 if SMOKE: print("\n[SMOKE] mechanics-only (synthetic data, tiny config); numbers meaningless -- confirms warm-up phase, joint phase, persistent-coupling path, A_long control, held-out split, InfoNCE + alignment metric, A-vs-B grid, and verdict logic run end-to-end.",flush=True)
