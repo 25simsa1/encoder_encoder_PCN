@@ -1,0 +1,233 @@
+[data] downloading COCO annotations (~241MB)...
+[data] downloads done (395s)
+[data] COCO ready (22000, 64, 64, 3) (477s)
+=== COUPLING SCALE === smoke=False N_have=22000 -> train=20000 eval=2000 | img (64, 64, 3) | V=53 | BATCHJ=128 EPOCHS=18 (2826 steps) warmup=1500 warmlr=0.002 ramp=300 control=True | chance eval=0.00050
+model: 156.7M params | DM=768 DIMS=[3072, 3072, 1536, 1536] | plain LARS lr=0.02
+
+----- ARM A (warmup=no, joint_steps=2826, jointw=0.0) -----
+    [joint]    50/2826 F=9.1557e-02 move=2.0% lr=3.3e-03 t=0.4m
+    [joint]   100/2826 F=9.3495e-02 move=4.9% lr=6.7e-03 t=0.7m
+    [joint]   150/2826 F=9.2599e-02 move=8.4% lr=1.0e-02 t=0.9m
+    [joint]   200/2826 F=8.8753e-02 move=12.7% lr=1.3e-02 t=1.2m
+    [joint]   250/2826 F=8.2549e-02 move=17.7% lr=1.7e-02 t=1.5m
+    [joint]   300/2826 F=8.1820e-02 move=22.4% lr=2.0e-02 t=1.8m
+    [joint]   350/2826 F=7.4809e-02 move=24.8% lr=2.0e-02 t=2.1m
+    [joint]   400/2826 F=6.9349e-02 move=27.4% lr=2.0e-02 t=2.4m
+    [joint]   450/2826 F=7.0239e-02 move=29.8% lr=2.0e-02 t=2.7m
+    [joint]   500/2826 F=7.0258e-02 move=32.2% lr=2.0e-02 t=3.0m
+    [joint]   550/2826 F=6.2765e-02 move=34.5% lr=2.0e-02 t=3.2m
+    [joint]   600/2826 F=6.1185e-02 move=36.6% lr=2.0e-02 t=3.5m
+    [joint]   650/2826 F=6.1344e-02 move=38.6% lr=2.0e-02 t=3.8m
+    [joint]   700/2826 F=6.0529e-02 move=40.9% lr=2.0e-02 t=4.1m
+    [joint]   750/2826 F=6.0193e-02 move=42.6% lr=2.0e-02 t=4.4m
+    [joint]   800/2826 F=6.0450e-02 move=44.2% lr=2.0e-02 t=4.7m
+    [joint]   850/2826 F=5.4831e-02 move=45.8% lr=2.0e-02 t=5.0m
+    [joint]   900/2826 F=5.4160e-02 move=47.2% lr=2.0e-02 t=5.3m
+    [joint]   950/2826 F=5.5241e-02 move=48.4% lr=2.0e-02 t=5.6m
+    [joint]  1000/2826 F=5.6730e-02 move=49.6% lr=2.0e-02 t=5.9m
+    [joint]  1050/2826 F=5.4485e-02 move=51.0% lr=2.0e-02 t=6.1m
+    [joint]  1100/2826 F=5.3631e-02 move=52.3% lr=2.0e-02 t=6.4m
+    [joint]  1150/2826 F=5.3076e-02 move=53.8% lr=2.0e-02 t=6.7m
+    [joint]  1200/2826 F=6.0299e-02 move=54.9% lr=2.0e-02 t=7.0m
+    [joint]  1250/2826 F=5.2964e-02 move=56.0% lr=2.0e-02 t=7.3m
+    [joint]  1300/2826 F=5.4937e-02 move=57.1% lr=2.0e-02 t=7.6m
+    [joint]  1350/2826 F=5.4606e-02 move=58.2% lr=2.0e-02 t=7.9m
+    [joint]  1400/2826 F=5.5913e-02 move=59.0% lr=2.0e-02 t=8.2m
+    [joint]  1450/2826 F=5.1874e-02 move=60.0% lr=2.0e-02 t=8.5m
+    [joint]  1500/2826 F=5.0035e-02 move=61.0% lr=2.0e-02 t=8.8m
+    [joint]  1550/2826 F=5.1293e-02 move=62.3% lr=2.0e-02 t=9.0m
+    [joint]  1600/2826 F=4.9697e-02 move=63.2% lr=2.0e-02 t=9.3m
+    [joint]  1650/2826 F=4.4595e-02 move=63.7% lr=2.0e-02 t=9.6m
+    [joint]  1700/2826 F=4.9267e-02 move=63.8% lr=2.0e-02 t=9.9m
+    [joint]  1750/2826 F=4.6727e-02 move=64.1% lr=2.0e-02 t=10.2m
+    [joint]  1800/2826 F=5.0449e-02 move=64.5% lr=2.0e-02 t=10.5m
+    [joint]  1850/2826 F=5.8306e-02 move=64.6% lr=2.0e-02 t=10.8m
+    [joint]  1900/2826 F=5.2472e-02 move=64.6% lr=2.0e-02 t=11.1m
+    [joint]  1950/2826 F=5.0603e-02 move=65.1% lr=2.0e-02 t=11.4m
+    [joint]  2000/2826 F=4.6442e-02 move=65.4% lr=2.0e-02 t=11.7m
+    [joint]  2050/2826 F=4.9846e-02 move=65.9% lr=2.0e-02 t=12.0m
+    [joint]  2100/2826 F=4.9169e-02 move=66.5% lr=2.0e-02 t=12.2m
+    [joint]  2150/2826 F=4.8569e-02 move=66.9% lr=2.0e-02 t=12.5m
+    [joint]  2200/2826 F=4.9395e-02 move=67.4% lr=2.0e-02 t=12.8m
+    [joint]  2250/2826 F=4.7632e-02 move=67.7% lr=2.0e-02 t=13.1m
+    [joint]  2300/2826 F=5.0013e-02 move=68.0% lr=2.0e-02 t=13.4m
+    [joint]  2350/2826 F=4.4618e-02 move=68.5% lr=2.0e-02 t=13.7m
+    [joint]  2400/2826 F=4.5507e-02 move=69.2% lr=2.0e-02 t=14.0m
+    [joint]  2450/2826 F=4.2198e-02 move=69.8% lr=2.0e-02 t=14.3m
+    [joint]  2500/2826 F=4.6478e-02 move=70.3% lr=2.0e-02 t=14.5m
+    [joint]  2550/2826 F=4.4088e-02 move=70.9% lr=2.0e-02 t=14.8m
+    [joint]  2600/2826 F=4.4975e-02 move=71.3% lr=2.0e-02 t=15.1m
+    [joint]  2650/2826 F=4.6896e-02 move=71.7% lr=2.0e-02 t=15.4m
+    [joint]  2700/2826 F=4.5756e-02 move=72.1% lr=2.0e-02 t=15.7m
+    [joint]  2750/2826 F=4.3668e-02 move=72.7% lr=2.0e-02 t=16.0m
+    [joint]  2800/2826 F=4.5891e-02 move=73.1% lr=2.0e-02 t=16.3m
+  ARM A: move=73.4% | HELD-OUT retr=0.00050 (1/2000, chance 0.00050) align_cos=0.725 lat_retr=0.001 diversity=0.121 recon=0.0262 i2t=0.323
+
+----- ARM B (warmup=yes, joint_steps=2826, jointw=0.0) -----
+    [warmup]    50 infonce=4.1530 t=0.1m
+    [warmup]   100 infonce=4.0408 t=0.1m
+    [warmup]   150 infonce=4.1172 t=0.1m
+    [warmup]   200 infonce=3.9778 t=0.1m
+    [warmup]   250 infonce=3.9884 t=0.2m
+    [warmup]   300 infonce=4.1310 t=0.2m
+    [warmup]   350 infonce=3.9031 t=0.2m
+    [warmup]   400 infonce=3.8303 t=0.3m
+    [warmup]   450 infonce=3.7911 t=0.3m
+    [warmup]   500 infonce=3.6882 t=0.3m
+    [warmup]   550 infonce=3.7549 t=0.3m
+    [warmup]   600 infonce=3.7748 t=0.4m
+    [warmup]   650 infonce=3.6987 t=0.4m
+    [warmup]   700 infonce=3.7489 t=0.4m
+    [warmup]   750 infonce=3.7109 t=0.4m
+    [warmup]   800 infonce=3.9459 t=0.5m
+    [warmup]   850 infonce=3.4995 t=0.5m
+    [warmup]   900 infonce=3.5435 t=0.5m
+    [warmup]   950 infonce=3.5386 t=0.6m
+    [warmup]  1000 infonce=3.4910 t=0.6m
+    [warmup]  1050 infonce=3.5095 t=0.6m
+    [warmup]  1100 infonce=3.5376 t=0.6m
+    [warmup]  1150 infonce=3.3888 t=0.7m
+    [warmup]  1200 infonce=3.4995 t=0.7m
+    [warmup]  1250 infonce=3.5166 t=0.7m
+    [warmup]  1300 infonce=3.2393 t=0.8m
+    [warmup]  1350 infonce=3.3550 t=0.8m
+    [warmup]  1400 infonce=3.3258 t=0.8m
+    [warmup]  1450 infonce=3.3885 t=0.8m
+    [warmup]  1500 infonce=3.3357 t=0.9m
+  ARM B POST-WARMUP (pre-joint) held-out: align_cos=0.050 lat_retr=0.003 (chance 0.0005)
+    [joint]    50/2826 F=9.0486e-02 move=9.7% lr=3.3e-03 t=0.3m
+    [joint]   100/2826 F=9.4081e-02 move=10.6% lr=6.7e-03 t=0.6m
+    [joint]   150/2826 F=9.3373e-02 move=12.6% lr=1.0e-02 t=0.9m
+    [joint]   200/2826 F=9.1687e-02 move=15.6% lr=1.3e-02 t=1.2m
+    [joint]   250/2826 F=8.7003e-02 move=19.6% lr=1.7e-02 t=1.5m
+    [joint]   300/2826 F=7.8887e-02 move=23.4% lr=2.0e-02 t=1.8m
+    [joint]   350/2826 F=7.4572e-02 move=25.7% lr=2.0e-02 t=2.1m
+    [joint]   400/2826 F=6.9937e-02 move=28.5% lr=2.0e-02 t=2.4m
+    [joint]   450/2826 F=6.6084e-02 move=30.9% lr=2.0e-02 t=2.7m
+    [joint]   500/2826 F=6.4858e-02 move=33.2% lr=2.0e-02 t=3.0m
+    [joint]   550/2826 F=6.2653e-02 move=35.4% lr=2.0e-02 t=3.3m
+    [joint]   600/2826 F=6.5145e-02 move=37.3% lr=2.0e-02 t=3.6m
+    [joint]   650/2826 F=6.3218e-02 move=39.3% lr=2.0e-02 t=3.9m
+    [joint]   700/2826 F=6.3895e-02 move=41.2% lr=2.0e-02 t=4.1m
+    [joint]   750/2826 F=5.8199e-02 move=42.9% lr=2.0e-02 t=4.4m
+    [joint]   800/2826 F=5.8158e-02 move=44.7% lr=2.0e-02 t=4.7m
+    [joint]   850/2826 F=5.5786e-02 move=46.1% lr=2.0e-02 t=5.0m
+    [joint]   900/2826 F=5.6552e-02 move=47.7% lr=2.0e-02 t=5.3m
+    [joint]   950/2826 F=5.5959e-02 move=48.9% lr=2.0e-02 t=5.6m
+    [joint]  1000/2826 F=5.3204e-02 move=50.1% lr=2.0e-02 t=5.9m
+    [joint]  1050/2826 F=5.2976e-02 move=51.5% lr=2.0e-02 t=6.2m
+    [joint]  1100/2826 F=4.9517e-02 move=52.9% lr=2.0e-02 t=6.5m
+    [joint]  1150/2826 F=5.0863e-02 move=54.9% lr=2.0e-02 t=6.8m
+    [joint]  1200/2826 F=5.2145e-02 move=56.9% lr=2.0e-02 t=7.1m
+    [joint]  1250/2826 F=4.8014e-02 move=58.4% lr=2.0e-02 t=7.4m
+    [joint]  1300/2826 F=5.1586e-02 move=59.3% lr=2.0e-02 t=7.7m
+    [joint]  1350/2826 F=4.8626e-02 move=60.5% lr=2.0e-02 t=7.9m
+    [joint]  1400/2826 F=4.9602e-02 move=61.1% lr=2.0e-02 t=8.3m
+    [joint]  1450/2826 F=5.0769e-02 move=62.2% lr=2.0e-02 t=8.6m
+    [joint]  1500/2826 F=6.0494e-02 move=63.1% lr=2.0e-02 t=9.0m
+    [joint]  1550/2826 F=5.0778e-02 move=65.2% lr=2.0e-02 t=9.3m
+    [joint]  1600/2826 F=5.2476e-02 move=66.6% lr=2.0e-02 t=9.6m
+    [joint]  1650/2826 F=5.1726e-02 move=67.6% lr=2.0e-02 t=9.9m
+    [joint]  1700/2826 F=5.1970e-02 move=69.0% lr=2.0e-02 t=10.2m
+    [joint]  1750/2826 F=4.8020e-02 move=70.6% lr=2.0e-02 t=10.5m
+    [joint]  1800/2826 F=4.5181e-02 move=73.2% lr=2.0e-02 t=10.8m
+    [joint]  1850/2826 F=4.8408e-02 move=75.7% lr=2.0e-02 t=11.1m
+    [joint]  1900/2826 F=4.9994e-02 move=77.1% lr=2.0e-02 t=11.5m
+    [joint]  1950/2826 F=4.7502e-02 move=78.8% lr=2.0e-02 t=11.8m
+    [joint]  2000/2826 F=4.8486e-02 move=80.8% lr=2.0e-02 t=12.1m
+    [joint]  2050/2826 F=4.8020e-02 move=82.4% lr=2.0e-02 t=12.4m
+    [joint]  2100/2826 F=4.3788e-02 move=82.4% lr=2.0e-02 t=12.7m
+    [joint]  2150/2826 F=5.3139e-02 move=82.3% lr=2.0e-02 t=13.0m
+    [joint]  2200/2826 F=4.5584e-02 move=82.7% lr=2.0e-02 t=13.3m
+    [joint]  2250/2826 F=4.4492e-02 move=83.1% lr=2.0e-02 t=13.6m
+    [joint]  2300/2826 F=4.3256e-02 move=83.6% lr=2.0e-02 t=13.9m
+    [joint]  2350/2826 F=4.4380e-02 move=84.1% lr=2.0e-02 t=14.2m
+    [joint]  2400/2826 F=4.1524e-02 move=84.8% lr=2.0e-02 t=14.6m
+    [joint]  2450/2826 F=4.2956e-02 move=85.8% lr=2.0e-02 t=14.9m
+    [joint]  2500/2826 F=4.5821e-02 move=86.3% lr=2.0e-02 t=15.2m
+    [joint]  2550/2826 F=4.3811e-02 move=86.8% lr=2.0e-02 t=15.5m
+    [joint]  2600/2826 F=4.6037e-02 move=86.3% lr=2.0e-02 t=15.8m
+    [joint]  2650/2826 F=4.3752e-02 move=87.0% lr=2.0e-02 t=16.1m
+    [joint]  2700/2826 F=4.3160e-02 move=86.2% lr=2.0e-02 t=16.4m
+    [joint]  2750/2826 F=4.5791e-02 move=85.4% lr=2.0e-02 t=16.8m
+    [joint]  2800/2826 F=4.0271e-02 move=86.8% lr=2.0e-02 t=17.1m
+  ARM B: move=87.8% | HELD-OUT retr=0.00050 (1/2000, chance 0.00050) align_cos=0.726 lat_retr=0.001 diversity=0.143 recon=0.0232 i2t=0.326 | POST-WARMUP lat_retr=0.003 -> POST-JOINT lat_retr=0.001
+
+----- ARM A_long (warmup=no, joint_steps=3611, jointw=0.0) -----
+    [joint]    50/3611 F=9.0975e-02 move=2.1% lr=3.3e-03 t=0.3m
+    [joint]   100/3611 F=9.2871e-02 move=4.8% lr=6.7e-03 t=0.6m
+    [joint]   150/3611 F=9.3623e-02 move=8.3% lr=1.0e-02 t=0.9m
+    [joint]   200/3611 F=9.5005e-02 move=12.6% lr=1.3e-02 t=1.2m
+    [joint]   250/3611 F=8.8451e-02 move=17.8% lr=1.7e-02 t=1.6m
+    [joint]   300/3611 F=7.6076e-02 move=22.2% lr=2.0e-02 t=1.9m
+    [joint]   350/3611 F=8.0379e-02 move=24.6% lr=2.0e-02 t=2.2m
+    [joint]   400/3611 F=7.0178e-02 move=27.4% lr=2.0e-02 t=2.5m
+    [joint]   450/3611 F=6.7299e-02 move=29.9% lr=2.0e-02 t=2.8m
+    [joint]   500/3611 F=6.7898e-02 move=32.5% lr=2.0e-02 t=3.1m
+    [joint]   550/3611 F=6.4299e-02 move=34.7% lr=2.0e-02 t=3.4m
+    [joint]   600/3611 F=6.3517e-02 move=36.6% lr=2.0e-02 t=3.7m
+    [joint]   650/3611 F=6.4259e-02 move=38.5% lr=2.0e-02 t=4.0m
+    [joint]   700/3611 F=6.6758e-02 move=40.5% lr=2.0e-02 t=4.3m
+    [joint]   750/3611 F=6.1422e-02 move=42.7% lr=2.0e-02 t=4.6m
+    [joint]   800/3611 F=6.0054e-02 move=44.3% lr=2.0e-02 t=4.9m
+    [joint]   850/3611 F=6.0086e-02 move=45.7% lr=2.0e-02 t=5.3m
+    [joint]   900/3611 F=5.4315e-02 move=47.1% lr=2.0e-02 t=5.6m
+    [joint]   950/3611 F=5.3595e-02 move=48.7% lr=2.0e-02 t=5.9m
+    [joint]  1000/3611 F=5.1890e-02 move=50.1% lr=2.0e-02 t=6.2m
+    [joint]  1050/3611 F=5.7531e-02 move=51.3% lr=2.0e-02 t=6.5m
+    [joint]  1100/3611 F=5.1421e-02 move=52.2% lr=2.0e-02 t=6.8m
+    [joint]  1150/3611 F=5.3071e-02 move=53.2% lr=2.0e-02 t=7.1m
+    [joint]  1200/3611 F=5.3057e-02 move=54.3% lr=2.0e-02 t=7.4m
+    [joint]  1250/3611 F=5.0558e-02 move=55.4% lr=2.0e-02 t=7.7m
+    [joint]  1300/3611 F=4.9566e-02 move=56.2% lr=2.0e-02 t=8.0m
+    [joint]  1350/3611 F=5.1134e-02 move=57.2% lr=2.0e-02 t=8.3m
+    [joint]  1400/3611 F=5.0949e-02 move=58.1% lr=2.0e-02 t=8.6m
+    [joint]  1450/3611 F=4.7159e-02 move=58.9% lr=2.0e-02 t=8.9m
+    [joint]  1500/3611 F=5.0136e-02 move=59.7% lr=2.0e-02 t=9.2m
+    [joint]  1550/3611 F=4.5857e-02 move=59.9% lr=2.0e-02 t=9.5m
+    [joint]  1600/3611 F=4.5769e-02 move=60.2% lr=2.0e-02 t=9.9m
+    [joint]  1650/3611 F=4.7960e-02 move=60.7% lr=2.0e-02 t=10.2m
+    [joint]  1700/3611 F=4.3418e-02 move=61.3% lr=2.0e-02 t=10.5m
+    [joint]  1750/3611 F=4.4247e-02 move=61.8% lr=2.0e-02 t=10.8m
+    [joint]  1800/3611 F=4.7084e-02 move=62.6% lr=2.0e-02 t=11.1m
+    [joint]  1850/3611 F=4.9004e-02 move=63.1% lr=2.0e-02 t=11.4m
+    [joint]  1900/3611 F=4.8899e-02 move=63.4% lr=2.0e-02 t=11.7m
+    [joint]  1950/3611 F=4.8780e-02 move=63.7% lr=2.0e-02 t=12.0m
+    [joint]  2000/3611 F=4.3829e-02 move=64.3% lr=2.0e-02 t=12.3m
+    [joint]  2050/3611 F=4.3319e-02 move=65.5% lr=2.0e-02 t=12.6m
+    [joint]  2100/3611 F=4.5855e-02 move=66.0% lr=2.0e-02 t=12.9m
+    [joint]  2150/3611 F=4.3398e-02 move=66.7% lr=2.0e-02 t=13.2m
+    [joint]  2200/3611 F=4.6708e-02 move=67.0% lr=2.0e-02 t=13.5m
+    [joint]  2250/3611 F=4.7278e-02 move=67.2% lr=2.0e-02 t=13.8m
+    [joint]  2300/3611 F=4.3975e-02 move=67.7% lr=2.0e-02 t=14.1m
+    [joint]  2350/3611 F=4.4547e-02 move=67.9% lr=2.0e-02 t=14.4m
+    [joint]  2400/3611 F=4.4607e-02 move=68.1% lr=2.0e-02 t=14.7m
+    [joint]  2450/3611 F=4.6159e-02 move=68.6% lr=2.0e-02 t=15.0m
+    [joint]  2500/3611 F=4.7251e-02 move=69.2% lr=2.0e-02 t=15.3m
+    [joint]  2550/3611 F=4.5689e-02 move=69.3% lr=2.0e-02 t=15.6m
+    [joint]  2600/3611 F=4.4400e-02 move=69.6% lr=2.0e-02 t=16.0m
+    [joint]  2650/3611 F=4.4215e-02 move=69.8% lr=2.0e-02 t=16.2m
+    [joint]  2700/3611 F=4.8175e-02 move=70.0% lr=2.0e-02 t=16.5m
+    [joint]  2750/3611 F=4.6867e-02 move=70.3% lr=2.0e-02 t=16.8m
+    [joint]  2800/3611 F=4.8640e-02 move=70.6% lr=2.0e-02 t=17.1m
+    [joint]  2850/3611 F=4.5226e-02 move=70.8% lr=2.0e-02 t=17.4m
+    [joint]  2900/3611 F=4.6032e-02 move=71.1% lr=2.0e-02 t=17.7m
+    [joint]  2950/3611 F=4.4869e-02 move=71.3% lr=2.0e-02 t=18.0m
+    [joint]  3000/3611 F=4.5412e-02 move=71.4% lr=2.0e-02 t=18.3m
+    [joint]  3050/3611 F=4.7318e-02 move=71.5% lr=2.0e-02 t=18.6m
+    [joint]  3100/3611 F=4.7610e-02 move=71.5% lr=2.0e-02 t=18.9m
+    [joint]  3150/3611 F=4.7855e-02 move=71.9% lr=2.0e-02 t=19.2m
+    [joint]  3200/3611 F=4.7703e-02 move=72.1% lr=2.0e-02 t=19.5m
+    [joint]  3250/3611 F=4.5319e-02 move=72.5% lr=2.0e-02 t=19.8m
+    [joint]  3300/3611 F=4.5238e-02 move=72.6% lr=2.0e-02 t=20.1m
+    [joint]  3350/3611 F=4.2732e-02 move=72.7% lr=2.0e-02 t=20.4m
+    [joint]  3400/3611 F=4.6875e-02 move=72.9% lr=2.0e-02 t=20.7m
+    [joint]  3450/3611 F=4.4142e-02 move=73.2% lr=2.0e-02 t=21.0m
+    [joint]  3500/3611 F=4.3462e-02 move=73.5% lr=2.0e-02 t=21.2m
+    [joint]  3550/3611 F=4.4003e-02 move=73.6% lr=2.0e-02 t=21.5m
+    [joint]  3600/3611 F=4.6363e-02 move=73.9% lr=2.0e-02 t=21.8m
+  ARM A_long: move=73.9% | HELD-OUT retr=0.00050 (1/2000, chance 0.00050) align_cos=0.853 lat_retr=0.001 diversity=0.142 recon=0.0262 i2t=0.303
+
+==================== COUPLING SCALE VERDICT (held-out only) ====================
+VERDICT: STILL AT CHANCE at n_train=20000 (A 1/2000, B 1/2000) -- coupling does not yet enable held-out matching at this scale. align delta +0.001 (B aligned more (mechanism works, insufficient)). Climb the data ladder or report the bottleneck. | A_long control retr 0.00050 (1/2000)
+saved: coupling_scale_grid_seed0.png, coupling_scale_results_seed0.json | ckpt /root
