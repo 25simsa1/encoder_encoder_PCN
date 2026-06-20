@@ -286,8 +286,12 @@ def readouts(idx):
     real=imgs[idx]
     diversity=float(np.mean(np.std(t2i,0))/(np.std(real)+1e-9))
     out_range=float((t2i.max(0)-t2i.min(0)).mean())
-    dd=((t2i.reshape(M,1,-1)-real.reshape(1,M,-1))**2).mean(-1)
-    retr=float(np.mean(np.argmin(dd,1)==np.arange(M)))
+    # nearest real image per generated image, WITHOUT the O(M^2*PIX) blowup:
+    # argmin_j ||A_i-B_j||^2 = argmin_j (||B_j||^2 - 2 A_i.B_j)  (||A_i||^2 const per i; mean vs sum irrelevant to argmin)
+    A=t2i.reshape(M,-1).astype("float32"); Bm=real.reshape(M,-1).astype("float32"); Bn=(Bm**2).sum(1)
+    nn=np.empty(M,"int64")
+    for st in range(0,M,256): nn[st:st+256]=np.argmin(Bn[None,:]-2.0*(A[st:st+256]@Bm.T),1)  # (chunk,M) only
+    retr=float(np.mean(nn==np.arange(M)))
     recon=float(np.mean((i2i-real)**2)); recon_base=float(np.mean((train_mean_img[None]-real)**2))
     i2t=i2t_hits/max(1,i2t_tot)
     ZIl=[]; ZTl=[]
