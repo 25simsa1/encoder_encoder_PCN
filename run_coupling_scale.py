@@ -62,6 +62,8 @@ CONTROL= os.environ.get("RUNS1_CONTROL", "1" if SMOKE else "0") == "1"
 READB  = int(os.environ.get("RUNS1_READB", 3 if SMOKE else 128))         # readout minibatch
 CKPT   = os.environ.get("RUNS1_CKPT", "/tmp/cs_ckpt" if SMOKE else "/root")
 DATA   = os.environ.get("RUNS1_DATA", "/tmp/cs_data" if SMOKE else "/root/coco_scale")
+COCO   = os.environ.get("RUNS1_COCO", "val2017")                         # val2017 (~5k imgs) or train2017 (~118k) to climb far
+READTRAIN = int(os.environ.get("RUNS1_READTRAIN", 4 if SMOKE else 1500)) # cap train-readout size (generation is per-example); eval is always full
 os.makedirs(CKPT, exist_ok=True); os.makedirs(DATA, exist_ok=True)
 assert RES % 16 == 0, "RES must be divisible by 16"
 
@@ -108,19 +110,19 @@ def load_synthetic():
     return imgs, caps
 
 def load_coco():
-    f_img,f_cap = os.path.join(DATA,"imgs_sc.npy"), os.path.join(DATA,"caps_sc.txt")
+    f_img,f_cap = os.path.join(DATA,f"imgs_sc_{COCO}.npy"), os.path.join(DATA,f"caps_sc_{COCO}.txt")
     if os.path.exists(f_img) and os.path.exists(f_cap):
         imgs=np.load(f_img); caps=open(f_cap).read().split("\n")[:len(imgs)]
         print(f"[data] reused cache {imgs.shape}",flush=True); return imgs, caps
     import urllib.request, zipfile
     from concurrent.futures import ThreadPoolExecutor
     from PIL import Image
-    ANN="http://images.cocodataset.org/annotations/annotations_trainval2017.zip"; IMG="http://images.cocodataset.org/val2017/{}"
+    ANN="http://images.cocodataset.org/annotations/annotations_trainval2017.zip"; IMG="http://images.cocodataset.org/"+COCO+"/{}"
     imgdir=os.path.join(DATA,"img"); os.makedirs(imgdir,exist_ok=True); capj=os.path.join(DATA,"cap.json"); t0=time.time()
     if not os.path.exists(capj):
         z=os.path.join(DATA,"ann.zip")
         if not os.path.exists(z): print("[data] downloading COCO annotations (~241MB)...",flush=True); urllib.request.urlretrieve(ANN,z)
-        with zipfile.ZipFile(z) as zf, zf.open("annotations/captions_val2017.json") as s, open(capj,"wb") as d: d.write(s.read())
+        with zipfile.ZipFile(z) as zf, zf.open(f"annotations/captions_{COCO}.json") as s, open(capj,"wb") as d: d.write(s.read())
     cap=json.load(open(capj)); id2cap={}
     for a in cap["annotations"]: id2cap.setdefault(a["image_id"], a["caption"])   # one caption per image
     id2file={im["id"]:im["file_name"] for im in cap["images"]}
@@ -355,7 +357,8 @@ def run_arm(name, do_warmup, joint_steps, jointw):
     try: np.savez(os.path.join(CKPT,f"cs_{name}_seed{SEED}.npz"), **{k:P[k].numpy() for k in P})
     except Exception: pass
     if diverged: return dict(name=name,diverged=True,move=move,elapsed=elapsed,postwarm=postwarm), None
-    m_tr,_=readouts(tr_idx); m_ev,t2i_ev=(readouts(ev_idx) if NEV else (None,None))
+    tr_sub = tr_idx if NTR<=READTRAIN else tr_idx[np.random.RandomState(SEED+3).choice(NTR,READTRAIN,replace=False)]  # cap train readout
+    m_tr,_=readouts(tr_sub); m_ev,t2i_ev=(readouts(ev_idx) if NEV else (None,None))
     pw = f" | POST-WARMUP lat_retr={postwarm['lat_retr']:.3f} -> POST-JOINT lat_retr={m_ev['lat_retr']:.3f}" if postwarm else ""
     print(f"  ARM {name}: move={move*100:.1f}% | HELD-OUT retr={m_ev['retr']:.5f} ({m_ev['hits']}/{NEV}, chance {m_ev['chance']:.5f}) "
           f"align_cos={m_ev['align_cos']:.3f} lat_retr={m_ev['lat_retr']:.3f} diversity={m_ev['diversity']:.3f} recon={m_ev['recon']:.4f} i2t={m_ev['i2t']:.3f}{pw}",flush=True)
