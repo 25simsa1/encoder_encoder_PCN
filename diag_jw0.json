@@ -1,0 +1,98 @@
+{
+  "config": {
+    "smoke": false,
+    "N_have": 3000,
+    "N_train": 2000,
+    "N_eval": 1000,
+    "RES": 64,
+    "CAPLEN": 64,
+    "V": 46,
+    "wmul": 1.5,
+    "params": 156657248,
+    "lr": 0.02,
+    "batchj": 128,
+    "epochs": 150,
+    "joint_steps": 2400,
+    "long_steps": 3168,
+    "warmup": 1500,
+    "batch": 64,
+    "temp": 0.07,
+    "warmlr": 0.002,
+    "ramp": 300,
+    "jointw": 0.0,
+    "control": false,
+    "seed": 0
+  },
+  "arm_A": {
+    "name": "A",
+    "diverged": false,
+    "move": 0.7214835434422907,
+    "elapsed": 14.404613935947419,
+    "train": {
+      "M": 2000,
+      "diversity": 0.48387570181762973,
+      "out_range": 0.753416973715351,
+      "retr": 0.003,
+      "hits": 6,
+      "chance": 0.0005,
+      "recon": 0.024662301302934602,
+      "recon_base": 0.06747938692569733,
+      "i2t": 0.3335703125,
+      "align_cos": 0.8428988456726074,
+      "lat_retr": 0.02
+    },
+    "heldout": {
+      "M": 1000,
+      "diversity": 0.4358701244744186,
+      "out_range": 0.6682914698521927,
+      "retr": 0.001,
+      "hits": 1,
+      "chance": 0.001,
+      "recon": 0.026028692785199477,
+      "recon_base": 0.0676845833659172,
+      "i2t": 0.312046875,
+      "align_cos": 0.7451945543289185,
+      "lat_retr": 0.0
+    },
+    "postwarm": null
+  },
+  "arm_B": {
+    "name": "B",
+    "diverged": false,
+    "move": 0.6754263778027905,
+    "elapsed": 15.157037651538849,
+    "train": {
+      "M": 2000,
+      "diversity": 0.3910155058382346,
+      "out_range": 0.6855451758842719,
+      "retr": 0.0025,
+      "hits": 5,
+      "chance": 0.0005,
+      "recon": 0.027502918643275646,
+      "recon_base": 0.06747938692569733,
+      "i2t": 0.3324765625,
+      "align_cos": 0.8539541363716125,
+      "lat_retr": 0.0155
+    },
+    "heldout": {
+      "M": 1000,
+      "diversity": 0.35274037865190794,
+      "out_range": 0.5880684294694826,
+      "retr": 0.001,
+      "hits": 1,
+      "chance": 0.001,
+      "recon": 0.028655596732094914,
+      "recon_base": 0.0676845833659172,
+      "i2t": 0.31165625,
+      "align_cos": 0.7558507323265076,
+      "lat_retr": 0.006
+    },
+    "postwarm": {
+      "align_cos": 0.02132173627614975,
+      "lat_retr": 0.0
+    }
+  },
+  "arm_A_long": null,
+  "i2t_base_train": 0.207625,
+  "i2t_base_eval": 0.2083125
+}
