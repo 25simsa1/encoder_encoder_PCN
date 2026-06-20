@@ -306,6 +306,13 @@ def readouts(idx):
 mode_char=int(np.bincount(toks[tr_idx].reshape(-1),minlength=V).argmax())
 def i2t_base_on(idx): return float(np.mean(toks[idx]==mode_char))
 
+def latent_readout(idx):                                                  # cheap (forward only, no relaxation)
+    M=len(idx); ZIl=[]; ZTl=[]
+    for st in range(0,M,READB):
+        bi=idx[st:st+READB]; ZI,ZT=ops["latents"](tf.constant(imgs[bi]), tf.constant(toks[bi])); ZIl.append(ZI.numpy()); ZTl.append(ZT.numpy())
+    ZI=np.concatenate(ZIl,0); ZT=np.concatenate(ZTl,0)
+    return dict(align_cos=float(np.mean(np.sum(ZI*ZT,1))), lat_retr=float(np.mean(np.argmax(ZT@ZI.T,1)==np.arange(M))))
+
 # ============================ PHASES ============================
 warm_rs=np.random.RandomState(SEED+11); ep_rs=np.random.RandomState(SEED+7)
 def warmup_phase(steps):
@@ -337,16 +344,22 @@ def joint_phase(total_steps, jointw):
 def run_arm(name, do_warmup, joint_steps, jointw):
     print(f"\n----- ARM {name} (warmup={'yes' if do_warmup else 'no'}, joint_steps={joint_steps}, jointw={jointw}) -----",flush=True)
     reset(); t0=time.time()
-    if do_warmup: warmup_phase(WARMUP)
+    postwarm=None
+    if do_warmup:
+        warmup_phase(WARMUP)
+        if NEV:                                                           # DIAGNOSTIC: per-pair separability right after warm-up, BEFORE joint
+            postwarm=latent_readout(ev_idx)
+            print(f"  ARM {name} POST-WARMUP (pre-joint) held-out: align_cos={postwarm['align_cos']:.3f} lat_retr={postwarm['lat_retr']:.3f} (chance {1/NEV:.4f})",flush=True)
     Fhist,diverged=joint_phase(joint_steps, jointw)
     move=movement(P,P_init); elapsed=(time.time()-t0)/60
     try: np.savez(os.path.join(CKPT,f"cs_{name}_seed{SEED}.npz"), **{k:P[k].numpy() for k in P})
     except Exception: pass
-    if diverged: return dict(name=name,diverged=True,move=move,elapsed=elapsed), None
+    if diverged: return dict(name=name,diverged=True,move=move,elapsed=elapsed,postwarm=postwarm), None
     m_tr,_=readouts(tr_idx); m_ev,t2i_ev=(readouts(ev_idx) if NEV else (None,None))
+    pw = f" | POST-WARMUP lat_retr={postwarm['lat_retr']:.3f} -> POST-JOINT lat_retr={m_ev['lat_retr']:.3f}" if postwarm else ""
     print(f"  ARM {name}: move={move*100:.1f}% | HELD-OUT retr={m_ev['retr']:.5f} ({m_ev['hits']}/{NEV}, chance {m_ev['chance']:.5f}) "
-          f"align_cos={m_ev['align_cos']:.3f} lat_retr={m_ev['lat_retr']:.3f} diversity={m_ev['diversity']:.3f} recon={m_ev['recon']:.4f} i2t={m_ev['i2t']:.3f}",flush=True)
-    return dict(name=name,diverged=False,move=move,elapsed=elapsed,train=m_tr,heldout=m_ev), t2i_ev
+          f"align_cos={m_ev['align_cos']:.3f} lat_retr={m_ev['lat_retr']:.3f} diversity={m_ev['diversity']:.3f} recon={m_ev['recon']:.4f} i2t={m_ev['i2t']:.3f}{pw}",flush=True)
+    return dict(name=name,diverged=False,move=move,elapsed=elapsed,train=m_tr,heldout=m_ev,postwarm=postwarm), t2i_ev
 
 # ============================ RUN ARMS ============================
 resA,t2iA = run_arm("A", False, JOINT_STEPS, 0.0)
