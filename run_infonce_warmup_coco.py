@@ -44,7 +44,14 @@ is itself informative). NEVER report in-sample gains as success.
 
 ENV: RUNS1_NTRAIN(400) RUNS1_NEVAL(100) RUNS1_RES(64) RUNS1_CAPLEN(64) RUNS1_WMUL(1.5) RUNS1_LR(2e-2)
 RUNS1_WARMUP(1500) RUNS1_JOINT(5000) RUNS1_BATCH(64) RUNS1_TEMP(0.07) RUNS1_CONTROL(0) RUNS1_JOINTW(0.0)
-RUNS1_SEED(0) RUNS1_CKPT RUNS1_DATA RUNS1_SMOKE(1=tiny CPU mechanics check, numbers meaningless).
+RUNS1_WARMLR(=LR; set LOWER e.g. 2e-3 to fix the warm-up->joint blowup) RUNS1_RAMP(300; joint LR linear
+warmup steps, all arms) RUNS1_SEED(0) RUNS1_CKPT RUNS1_DATA RUNS1_SMOKE(1=tiny CPU mechanics check).
+
+STABILITY NOTE (seed-0 pod run, commit e695f9b): Arm B diverged (F->1e34, NaN) at the 3rd joint step
+after the 1500-step warm-up. LARS is scale-equivariant so the warm-up inflates encoder weight norms,
+and the first energy steps into a tiny-init decoder explode. Fix = gentler handoff: RUNS1_WARMLR=2e-3
+(do not inflate the encoder) + RUNS1_RAMP=300 (let the decoder catch up). BOTH apply to all arms so the
+only difference between arms remains the warm-up. These stabilize training; they are not the hypothesis.
 """
 import os, sys, time, json
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", os.environ.get("RUNS1_GPU", "0"))
@@ -69,6 +76,8 @@ BATCH  = int(os.environ.get("RUNS1_BATCH", 4 if SMOKE else 64))
 TEMP   = float(os.environ.get("RUNS1_TEMP", 0.07))
 CONTROL= os.environ.get("RUNS1_CONTROL", "1" if SMOKE else "0") == "1"   # A_long compute-matched control
 JOINTW = float(os.environ.get("RUNS1_JOINTW", 0.1 if SMOKE else 0.0))    # persistent InfoNCE during joint
+WARMLR = float(os.environ.get("RUNS1_WARMLR", LR))                       # warm-up LR; LOWER than joint LR fixes the warm-up->joint blowup (LARS inflates encoder norms)
+RAMP   = int(os.environ.get("RUNS1_RAMP", 2 if SMOKE else 300))          # joint LR linear-warmup steps, applied to ALL arms (gentle handoff). 0 = off
 CKPT   = os.environ.get("RUNS1_CKPT", "/tmp/coup_ckpt" if SMOKE else "/root")
 DATA   = os.environ.get("RUNS1_DATA", "/tmp/s1ho_data" if SMOKE else "/root/coco_s1ho")
 os.makedirs(CKPT, exist_ok=True); os.makedirs(DATA, exist_ok=True)
@@ -166,7 +175,7 @@ PIX = RES*RES*3; CH = 3
 chars, c2i = build_vocab([caps[i] for i in tr_idx]); V = len(chars)   # train-only vocab
 toks = encode_caps(caps, c2i, CAPLEN); toks_oh = tf.one_hot(toks, V).numpy().astype("float32")
 train_mean_img = imgs[tr_idx].mean(0)
-print(f"=== InfoNCE WARM-UP experiment === smoke={SMOKE} N_have={N_HAVE} -> train={NTR} eval={NEV} (disjoint) | img {imgs.shape[1:]} | CAPLEN={CAPLEN} V={V} | warmup={WARMUP} joint={JOINT} batch={BATCH} temp={TEMP} | control={CONTROL} jointw={JOINTW} | chance retr eval={1/max(NEV,1):.4f}",flush=True)
+print(f"=== InfoNCE WARM-UP experiment === smoke={SMOKE} N_have={N_HAVE} -> train={NTR} eval={NEV} (disjoint) | img {imgs.shape[1:]} | CAPLEN={CAPLEN} V={V} | warmup={WARMUP} joint={JOINT} batch={BATCH} temp={TEMP} | control={CONTROL} jointw={JOINTW} warmlr={WARMLR} ramp={RAMP} | chance retr eval={1/max(NEV,1):.4f}",flush=True)
 
 # ============================ MODEL (identical to gate/held-out) ============================
 def cfg(wmul):
@@ -310,22 +319,23 @@ def i2t_base_on(idx): return float(np.mean(toks[idx]==mode_char))
 warm_rs=np.random.RandomState(SEED+11); joint_order=np.random.RandomState(SEED+7).permutation(NTR)
 def warmup_phase(steps):
     if steps<=0: return
-    lrt=tf.constant(LR,tf.float32); tmp=tf.constant(TEMP,tf.float32); t0=time.time()
+    lrt=tf.constant(WARMLR,tf.float32); tmp=tf.constant(TEMP,tf.float32); t0=time.time()
     for s in range(steps):
         b=warm_rs.choice(NTR, size=min(BATCH,NTR), replace=False); bi=tr_idx[b]
         L=float(ops["warmup_step"](tf.constant(imgs[bi]), tf.constant(toks[bi]), lrt, tmp))
         if (s+1)%LOG_EVERY==0: print(f"    [warmup] {s+1:5d} infonce={L:.4f} t={(time.time()-t0)/60:.1f}m",flush=True)
 
 def joint_phase(steps, jointw):
-    lrt=tf.constant(LR,tf.float32); tmp=tf.constant(TEMP,tf.float32); Fhist=[]; diverged=False; t0=time.time()
+    tmp=tf.constant(TEMP,tf.float32); Fhist=[]; diverged=False; t0=time.time()
     for s in range(steps):
+        cur=LR*min(1.0,(s+1)/RAMP) if RAMP>0 else LR; lrt=tf.constant(cur,tf.float32)   # joint LR ramp (all arms)
         i=int(tr_idx[joint_order[s%NTR]]); x=tf.constant(imgs[i][None]); tk=tf.constant(toks[i][None]); igt=img_t(i); tgt=txt_t(i)
         it,tt=ops["get_taps"](x,tk)
         Sv=ops["relax_full"]([0.5*(it[k]+tt[k]) for k in range(NS)],it,tt,igt,tgt,N_INFER)
         F,mxw=ops["weight_step"](x,tk,tuple(tf.constant(z) for z in Sv),igt,tgt,lrt); F=float(F); mxw=float(mxw); Fhist.append(F)
         if jointw>0:                                               # optional persistent coupling
             b=warm_rs.choice(NTR, size=min(BATCH,NTR), replace=False); bi=tr_idx[b]
-            ops["warmup_step"](tf.constant(imgs[bi]), tf.constant(toks[bi]), tf.constant(LR*jointw,tf.float32), tmp)
+            ops["warmup_step"](tf.constant(imgs[bi]), tf.constant(toks[bi]), tf.constant(cur*jointw,tf.float32), tmp)
         if not (np.isfinite(F) and mxw<DIVERGE_W):
             diverged=True; print(f"    !! DIVERGENCE joint step {s}: F={F:.3e} max|w|={mxw:.2e}",flush=True); break
         if (s+1)%LOG_EVERY==0: print(f"    [joint] {s+1:5d} F={F:.4e} move={movement(P,P_init)*100:.1f}% t={(time.time()-t0)/60:.1f}m",flush=True)
