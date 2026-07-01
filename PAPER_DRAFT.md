@@ -94,11 +94,16 @@ reported as a placeholder in Section 5.4.
 
 **Optimization and weight movement in predictive coding.** That poor solutions in predictive coding are an
 optimization phenomenon, diagnosed by weight-update magnitude and addressed by making weights move more, is
-established by Innocenti et al. (arXiv:2305.13562), who study classification and one autoencoder rather than
+established by Alonso et al. (arXiv:2305.13562), who study classification and one autoencoder rather than
 generative diversity. That effective learning rate must scale with network size, and that wrong scaling
 makes weight updates vanish, is established by the stable-parameterization line (arXiv:2411.02001) and by
 muPC (arXiv:2505.13124). Our work takes the breaking of mean collapse as a starting point rather than a
 contribution and asks what happens next in the cross-modal setting.
+
+**Inference scheme.** Our inference relaxes a shared latent under a single joint energy, updating all scales
+simultaneously, and we make no claim about inference scheduling. This differs from the sequential,
+output-to-input inference of Alonso et al. (arXiv:2305.13562), whose contribution is a computation-reduction
+technique for supervised classification and is orthogonal to the cross-modal generalization we study.
 
 **Generative and bidirectional predictive coding.** Bidirectional predictive coding with separate top-down
 and bottom-up weights and a multimodal experiment exists (arXiv:2505.23415, Bogacz group), but the
