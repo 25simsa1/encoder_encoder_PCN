@@ -294,6 +294,8 @@ def run_seed(seed):
     print(f"  E1 seed {seed}: TRAIN lat_retr={m_tr['lat_retr']:.3f} (fit gate {gate}) | "
           f"HELD-OUT lat_retr={rec['heldout_lat_retr']:.5f} ({hits}/{NEV}, chance {1.0/NEV:.5f}, {rec['sigma']:.1f} sigma) "
           f"align_cos={rec['heldout_align_cos']:.3f} | {wall:.1f} min", flush=True)
+    if os.environ.get("E1_SAVE", "0") == "1":                          # gated weight save (latent-geometry battery)
+        np.savez(os.path.join(os.environ.get("E1_CKPT", HERE), f"e1_seed{seed}.npz"), **{k: P[k].numpy() for k in P})
     # free per-seed state before the next rebuild
     del P, ops, TV, M_, Vv
     tf.keras.backend.clear_session()

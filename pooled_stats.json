@@ -1,0 +1,180 @@
+{
+  "endpoint": "heldout latent retrieval (lat_retr), primary; generation retrieval excluded",
+  "method": "exact binomial tail via rational-arithmetic complement (no float underflow)",
+  "cells": [
+    {
+      "cell": "BP (E1 Adam+InfoNCE) 2k",
+      "hits": 4,
+      "n": 3000,
+      "chance_den": 1000,
+      "expected": 3.0,
+      "sigma": 0.58,
+      "exact_tail": 0.3527680925289306,
+      "exact_tail_str": "3.528e-01",
+      "per_run": [
+        "s0=2/1000",
+        "s1=0/1000",
+        "s2=2/1000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "BP (E1) 8k",
+      "hits": 15,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 6.93,
+      "exact_tail": 6.629077751540613e-07,
+      "exact_tail_str": "6.629e-07",
+      "per_run": [
+        "s0=5/2000",
+        "s1=6/2000",
+        "s2=4/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "BP (E1) 20k",
+      "hits": 44,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 23.68,
+      "exact_tail": 1.7224525841080478e-35,
+      "exact_tail_str": "1.722e-35",
+      "per_run": [
+        "s0=22/2000",
+        "s1=16/2000",
+        "s2=6/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "E1L (LARS+InfoNCE) 8k",
+      "hits": 16,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 7.51,
+      "exact_tail": 1.2245011771473915e-07,
+      "exact_tail_str": "1.225e-07",
+      "per_run": [
+        "s0=7/2000",
+        "s1=4/2000",
+        "s2=5/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "E1L 20k",
+      "hits": 37,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 19.63,
+      "exact_tail": 1.609518401360894e-27,
+      "exact_tail_str": "1.610e-27",
+      "per_run": [
+        "s0=13/2000",
+        "s1=11/2000",
+        "s2=13/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "BPonF (Adam on F, pinned) 8k",
+      "hits": 5,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 1.15,
+      "exact_tail": 0.18469472837567397,
+      "exact_tail_str": "1.847e-01",
+      "per_run": [
+        "s0=1/2000",
+        "s1=2/2000",
+        "s2=2/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "BPonF 20k",
+      "hits": 5,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 1.15,
+      "exact_tail": 0.18469472837567397,
+      "exact_tail_str": "1.847e-01",
+      "per_run": [
+        "s0=1/2000",
+        "s1=2/2000",
+        "s2=2/2000"
+      ],
+      "caveat": ""
+    },
+    {
+      "cell": "PC 2k (E2, 3 seeds x 3 arms)",
+      "hits": 9,
+      "n": 9000,
+      "chance_den": 1000,
+      "expected": 9.0,
+      "sigma": 0.0,
+      "exact_tail": 0.5444133107347423,
+      "exact_tail_str": "5.444e-01",
+      "per_run": [
+        "res_2k_150ep_s0.json:A=0/1000",
+        "res_2k_150ep_s0.json:B=1/1000",
+        "res_2k_150ep_s0.json:A_long=1/1000",
+        "res_2k_150ep_s1.json:A=0/1000",
+        "res_2k_150ep_s1.json:B=3/1000",
+        "res_2k_150ep_s1.json:A_long=2/1000",
+        "res_2k_150ep_s2.json:A=1/1000",
+        "res_2k_150ep_s2.json:B=1/1000",
+        "res_2k_150ep_s2.json:A_long=0/1000"
+      ],
+      "caveat": "pooled across arms and seeds; arms share splits within a seed"
+    },
+    {
+      "cell": "PC 8k matched-epochs (7 runs)",
+      "hits": 6,
+      "n": 14000,
+      "chance_den": 2000,
+      "expected": 7.0,
+      "sigma": -0.38,
+      "exact_tail": 0.699355598889951,
+      "exact_tail_str": "6.994e-01",
+      "per_run": [
+        "res_8k_150ep.json:A=1/2000",
+        "res_8k_150ep.json:B=0/2000",
+        "res_8k_150ep.json:A_long=1/2000",
+        "res_8k_150ep_s1.json:A=1/2000",
+        "res_8k_150ep_s1.json:B=1/2000",
+        "res_8k_150ep_s2.json:A=2/2000",
+        "res_8k_150ep_s2.json:B=0/2000"
+      ],
+      "caveat": "pooled across arms and seeds; arms share splits within a seed"
+    },
+    {
+      "cell": "PC 20k matched-epochs (7 runs)",
+      "hits": 10,
+      "n": 14000,
+      "chance_den": 2000,
+      "expected": 7.0,
+      "sigma": 1.13,
+      "exact_tail": 0.16945334170828288,
+      "exact_tail_str": "1.695e-01",
+      "per_run": [
+        "res_20k_150ep.json:A=1/2000",
+        "res_20k_150ep.json:B=2/2000",
+        "res_20k_150ep.json:A_long=1/2000",
+        "res_20k_150ep_s1.json:A=1/2000",
+        "res_20k_150ep_s1.json:B=2/2000",
+        "res_20k_150ep_s2.json:A=1/2000",
+        "res_20k_150ep_s2.json:B=2/2000"
+      ],
+      "caveat": "pooled across arms and seeds; arms share splits within a seed"
+    }
+  ]
+}
