@@ -1,0 +1,314 @@
+{
+  "config": {
+    "n_train": 8000,
+    "n_eval": 2000,
+    "readtrain": 1500,
+    "coco": "train2017",
+    "bar": 3
+  },
+  "systems": {
+    "PC_armA": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/8k_150ep/cs_A_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 10.597660064697266,
+        "txt_concat": 7.0186767578125,
+        "img_concat_unc": 1.112888216972351,
+        "txt_concat_unc": 1.0049595832824707,
+        "img_mu_norm2": 0.9475405812263489,
+        "txt_mu_norm2": 0.9975277185440063,
+        "img_scales": [
+          8.195481300354004,
+          6.656074047088623,
+          497.2037353515625,
+          301.9967956542969
+        ],
+        "txt_scales": [
+          5.793488025665283,
+          4.665757179260254,
+          53.599571228027344,
+          30.287914276123047
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.9579423666000366,
+        "mismatched_cos": 0.9574831685423851,
+        "gap": 0.0004591980576514887,
+        "gap_sigma": 7.490599464919367
+      },
+      "wang_isola": {
+        "align_cos": 0.9579423666000366,
+        "l_align": 0.08411525189876556,
+        "unif_img": -0.20442354679107666,
+        "unif_txt": -0.009874356910586357
+      },
+      "ladder": {
+        "raw": 1,
+        "centered": 1,
+        "centered_procrustes": 1,
+        "scale_whitened": 0,
+        "ridge": 2,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.490322638646007,
+        "r2_null": -0.01852125328351817,
+        "top_char_acc": 0.9815,
+        "null_top_base": 0.9815
+      },
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, nothing rescues)"
+    },
+    "PC_armB": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/8k_150ep/cs_B_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 11.294158935546875,
+        "txt_concat": 15.872879028320312,
+        "img_concat_unc": 1.0369014739990234,
+        "txt_concat_unc": 1.0046707391738892,
+        "img_mu_norm2": 0.982005774974823,
+        "txt_mu_norm2": 0.9976721405982971,
+        "img_scales": [
+          8.29428482055664,
+          9.284160614013672,
+          54.405277252197266,
+          33.765689849853516
+        ],
+        "txt_scales": [
+          13.198657035827637,
+          7.596171855926514,
+          22.849220275878906,
+          7.381036281585693
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.9667119383811951,
+        "mismatched_cos": 0.96657735735178,
+        "gap": 0.00013458102941510397,
+        "gap_sigma": 5.918793211347105
+      },
+      "wang_isola": {
+        "align_cos": 0.9667119383811951,
+        "l_align": 0.0665760487318039,
+        "unif_img": -0.07141118496656418,
+        "unif_txt": -0.009308372624218464
+      },
+      "ladder": {
+        "raw": 0,
+        "centered": 3,
+        "centered_procrustes": 0,
+        "scale_whitened": 2,
+        "ridge": 4,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.7267830616666395,
+        "r2_null": -0.05204942634704154,
+        "top_char_acc": 0.9825,
+        "null_top_base": 0.9815
+      },
+      "verdict": "no caption information in text latents (probe fails, nothing rescues)"
+    },
+    "BPonF": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/geom_ckpts/bpf_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 3.850412130355835,
+        "txt_concat": 3.7137844562530518,
+        "img_concat_unc": 1.0555088520050049,
+        "txt_concat_unc": 1.0157239437103271,
+        "img_mu_norm2": 0.9729572534561157,
+        "txt_mu_norm2": 0.9898701906204224,
+        "img_scales": [
+          1.9752815961837769,
+          1.51237154006958,
+          1.146209478378296,
+          5.28388786315918
+        ],
+        "txt_scales": [
+          2.2907540798187256,
+          1.0230979919433594,
+          2.1917901039123535,
+          0.0
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.9725346565246582,
+        "mismatched_cos": 0.9724431255459786,
+        "gap": 9.153097867964366e-05,
+        "gap_sigma": 1.7567460155816363
+      },
+      "wang_isola": {
+        "align_cos": 0.9725346565246582,
+        "l_align": 0.05493061989545822,
+        "unif_img": -0.10282637923955917,
+        "unif_txt": -0.02413073554635048
+      },
+      "ladder": {
+        "raw": 1,
+        "centered": 0,
+        "centered_procrustes": 0,
+        "scale_whitened": 0,
+        "ridge": 0,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.36270124526450453,
+        "r2_null": -0.0003135900432075604,
+        "top_char_acc": 0.982,
+        "null_top_base": 0.9815
+      },
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, nothing rescues)"
+    },
+    "E1_adam": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/geom_ckpts/e1_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 75.24413299560547,
+        "txt_concat": 39.916656494140625,
+        "img_concat_unc": 72.3931655883789,
+        "txt_concat_unc": 40.02360534667969,
+        "img_mu_norm2": 0.0229233056306839,
+        "txt_mu_norm2": 0.004218753427267075,
+        "img_scales": [
+          61.361534118652344,
+          132.3162384033203,
+          295.7683410644531,
+          183.35458374023438
+        ],
+        "txt_scales": [
+          35.608211517333984,
+          65.03457641601562,
+          180.92604064941406,
+          232.47573852539062
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.02724241465330124,
+        "mismatched_cos": -0.0019320283215375866,
+        "gap": 0.029174442974838826,
+        "gap_sigma": 9.537760577704253
+      },
+      "wang_isola": {
+        "align_cos": 0.02724241465330124,
+        "l_align": 1.9455151557922363,
+        "unif_img": -3.807856559753418,
+        "unif_txt": -3.7808330059051514
+      },
+      "ladder": {
+        "raw": 5,
+        "centered": 4,
+        "centered_procrustes": 6,
+        "scale_whitened": 5,
+        "ridge": 3,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.964104564417412,
+        "r2_null": -0.040608410502062764,
+        "top_char_acc": 0.986,
+        "null_top_base": 0.9815
+      },
+      "verdict": "coupled (raw retrieval above bar)"
+    },
+    "E1L_lars": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/geom_ckpts/e1l_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 184.21365356445312,
+        "txt_concat": 44.57265853881836,
+        "img_concat_unc": 114.71160888671875,
+        "txt_concat_unc": 43.181907653808594,
+        "img_mu_norm2": 0.05189137160778046,
+        "txt_mu_norm2": 0.030931096524000168,
+        "img_scales": [
+          148.98348999023438,
+          188.18907165527344,
+          97.23998260498047,
+          6.011120319366455
+        ],
+        "txt_scales": [
+          42.228370666503906,
+          49.70440673828125,
+          30.30490493774414,
+          5.1639018058776855
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.027010086923837662,
+        "mismatched_cos": -0.004577571607369464,
+        "gap": 0.031587658531207125,
+        "gap_sigma": 14.91890566221037
+      },
+      "wang_isola": {
+        "align_cos": 0.027010086923837662,
+        "l_align": 1.9459799528121948,
+        "unif_img": -3.748753070831299,
+        "unif_txt": -3.6941606998443604
+      },
+      "ladder": {
+        "raw": 6,
+        "centered": 5,
+        "centered_procrustes": 5,
+        "scale_whitened": 4,
+        "ridge": 4,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.9374228115840327,
+        "r2_null": -0.04939993525373154,
+        "top_char_acc": 0.9845,
+        "null_top_base": 0.9815
+      },
+      "verdict": "coupled (raw retrieval above bar)"
+    }
+  },
+  "prediction": {
+    "pc": {
+      "mu2": 0.9975277185440063,
+      "gap_sigma": 7.490599464919367,
+      "raw": 1,
+      "best_rescue": 2
+    },
+    "bponf": {
+      "mu2": 0.9898701906204224,
+      "gap_sigma": 1.7567460155816363,
+      "raw": 1,
+      "best_rescue": 0
+    },
+    "e1": {
+      "mu2": 0.0229233056306839,
+      "gap_sigma": 9.537760577704253,
+      "raw": 5,
+      "best_rescue": 6
+    },
+    "pc_bponf_cluster": true,
+    "e1_differs": true,
+    "adjudication": "PREDICTION HOLDS: PC and BPonF share the failure geometry while the InfoNCE systems differ"
+  }
+}
