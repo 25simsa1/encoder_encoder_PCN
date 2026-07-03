@@ -1,0 +1,148 @@
+{
+  "ckpt": "/home/slsang29/runs/8k_150ep_s1/cs_A_seed1.npz",
+  "seed": 1,
+  "recomputed_train_hits": 12,
+  "readtrain": 1500,
+  "heldout_reference": "res_8k_150ep_s1.json arm_A heldout lat_retr 0.0005 (1/2000)",
+  "population_baselines": {
+    "pop_nn_img_mse_median": 0.046833716332912445,
+    "pop_nn_img_mse_p10": 0.028694921731948854,
+    "pop_nn_cap_ratio_median": 0.5685242518059855,
+    "pop_nn_cap_ratio_p90": 0.6608414239482201
+  },
+  "hits": [
+    {
+      "subset_pos": 105,
+      "global_idx": 16056,
+      "caption": "this aerial shot shows a person crossing the street with an umbrella over their ",
+      "nn_img_mse": 0.06617239862680435,
+      "nn_caption_ratio": 0.6259541984732825,
+      "nn_caption": "a person holding an umbrella above their head.",
+      "img_norm_pct": 1.7333333333333332,
+      "txt_norm_pct": 25.4,
+      "margin": 0.008144140243530273
+    },
+    {
+      "subset_pos": 119,
+      "global_idx": 21659,
+      "caption": "a skier with a backpack zooming down a snowy slope",
+      "nn_img_mse": 0.018485339358448982,
+      "nn_caption_ratio": 0.7045454545454546,
+      "nn_caption": "a skier skiing down a snowy ski slope.",
+      "img_norm_pct": 68.06666666666666,
+      "txt_norm_pct": 96.33333333333334,
+      "margin": 0.01791524887084961
+    },
+    {
+      "subset_pos": 261,
+      "global_idx": 788,
+      "caption": "a large crowd of motorcycle enthusiasts at a motorcycle event.",
+      "nn_img_mse": 0.06453162431716919,
+      "nn_caption_ratio": 0.5471698113207547,
+      "nn_caption": "a large group of people walking on a street.",
+      "img_norm_pct": 25.2,
+      "txt_norm_pct": 64.53333333333333,
+      "margin": 0.012973666191101074
+    },
+    {
+      "subset_pos": 423,
+      "global_idx": 20264,
+      "caption": "men in a park with frisbee, with trees, portable toilets, fence, bags, and other",
+      "nn_img_mse": 0.024524012580513954,
+      "nn_caption_ratio": 0.5308641975308642,
+      "nn_caption": "a man riding a horse with trees and buildings in background.",
+      "img_norm_pct": 2.4,
+      "txt_norm_pct": 25.533333333333335,
+      "margin": 0.00931692123413086
+    },
+    {
+      "subset_pos": 694,
+      "global_idx": 1722,
+      "caption": "a motorcycle parked next to a group of electrical boxes.",
+      "nn_img_mse": 0.053145479410886765,
+      "nn_caption_ratio": 0.7474747474747475,
+      "nn_caption": "a motorcycle parked next to a few bicycles.",
+      "img_norm_pct": 35.733333333333334,
+      "txt_norm_pct": 65.66666666666666,
+      "margin": 0.014542102813720703
+    },
+    {
+      "subset_pos": 707,
+      "global_idx": 10308,
+      "caption": "a flock of birds flying in an overcast sky",
+      "nn_img_mse": 0.0069899107329547405,
+      "nn_caption_ratio": 0.7631578947368421,
+      "nn_caption": "a flock of birds flies in the sky.",
+      "img_norm_pct": 98.26666666666667,
+      "txt_norm_pct": 99.53333333333333,
+      "margin": 0.0019168257713317871
+    },
+    {
+      "subset_pos": 717,
+      "global_idx": 11305,
+      "caption": "a seagull on the waters edge of a beach holding a fish in it's mouth.",
+      "nn_img_mse": 0.02703983150422573,
+      "nn_caption_ratio": 0.5343511450381679,
+      "nn_caption": "a restroom hanging off the side of a building over a mountain.",
+      "img_norm_pct": 50.6,
+      "txt_norm_pct": 88.46666666666667,
+      "margin": 0.0029718875885009766
+    },
+    {
+      "subset_pos": 955,
+      "global_idx": 10060,
+      "caption": "a water hydrant is seen on the footpath.",
+      "nn_img_mse": 0.019924215972423553,
+      "nn_caption_ratio": 0.6265060240963856,
+      "nn_caption": "a cat that is sitting on the hood of a car.",
+      "img_norm_pct": 4.6,
+      "txt_norm_pct": 49.06666666666666,
+      "margin": 0.007319509983062744
+    },
+    {
+      "subset_pos": 1123,
+      "global_idx": 8483,
+      "caption": "a burnt out cement building is next to a stop sign.",
+      "nn_img_mse": 0.03473423048853874,
+      "nn_caption_ratio": 0.6666666666666666,
+      "nn_caption": "a very tall building sitting next to a street sign.",
+      "img_norm_pct": 34.2,
+      "txt_norm_pct": 81.6,
+      "margin": 0.0006530880928039551
+    },
+    {
+      "subset_pos": 1253,
+      "global_idx": 19012,
+      "caption": "a man and a woman riding skis down the slide of a snow covered slope.",
+      "nn_img_mse": 0.04530708119273186,
+      "nn_caption_ratio": 0.8854961832061069,
+      "nn_caption": "a young man riding skis down the side of a snow covered slope.",
+      "img_norm_pct": 59.0,
+      "txt_norm_pct": 97.53333333333333,
+      "margin": 0.01894277334213257
+    },
+    {
+      "subset_pos": 1256,
+      "global_idx": 1906,
+      "caption": "a monkey runs past some giraffe standing by the trees.",
+      "nn_img_mse": 0.022144703194499016,
+      "nn_caption_ratio": 0.6019417475728155,
+      "nn_caption": "a tall giraffe standing next to a bunch of trees.",
+      "img_norm_pct": 1.0666666666666667,
+      "txt_norm_pct": 42.8,
+      "margin": 0.0020571351051330566
+    },
+    {
+      "subset_pos": 1440,
+      "global_idx": 10929,
+      "caption": "a tour bus is parked along a curb.",
+      "nn_img_mse": 0.056003961712121964,
+      "nn_caption_ratio": 0.6216216216216216,
+      "nn_caption": "a double deck tour bus parked at a stop.",
+      "img_norm_pct": 35.93333333333334,
+      "txt_norm_pct": 49.8,
+      "margin": 0.004246950149536133
+    }
+  ],
+  "conclusion": "DATA-ARTIFACT PROFILE: 9/12 hit pairs are near-duplicates (image MSE below the population p10 or caption similarity above the p90); the weak in-sample signal rides on duplicated content, not learned coupling."
+}
