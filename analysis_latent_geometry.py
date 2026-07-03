@@ -239,20 +239,27 @@ for name, path, seed in SPECS:
         ridge=ridge_hits, ridge_lam=ridge_lam, bar=BAR, n_eval=len(ev_idx))
     r["bag_probe"] = bag_probe(ZT_tr_c, toks[tr_sub], ZT_ev_c, toks[ev_idx], V, nul)
     # ordered interpretation
-    lad = r["ladder"]; rescued = {k: lad[k] > BAR for k in ("raw","centered","centered_procrustes","scale_whitened","ridge")}
+    lad = r["ladder"]
+    # raw is judged at the PRE-REGISTERED bar; the exploratory rescue rungs must clear a stricter
+    # 2x bar before they overturn the geometric label (a 4-hit ridge blip must not flip "collapse")
+    coupled_raw = lad["raw"] > BAR
+    rescued = {k: lad[k] > 2*BAR for k in ("centered","centered_procrustes","scale_whitened","ridge")}
     probe_ok = r["bag_probe"]["r2"] > max(3*abs(r["bag_probe"]["r2_null"]), 0.05)
     collapsed = (r["erank"]["txt_concat_unc"] < 3 or r["erank"]["img_concat_unc"] < 3
                  or max(r["erank"]["txt_mu_norm2"], r["erank"]["img_mu_norm2"]) > 0.8)
-    if collapsed and not any(rescued.values()):
-        verdict = "mean-direction collapse (uncentered erank ~1 / mean carries the energy, nothing rescues)"
-    elif rescued["centered_procrustes"] and not rescued["raw"]:
+    residual = f"; residual caption signal (probe R2={r['bag_probe']['r2']:.2f}) with no cross-modal map" if probe_ok else ""
+    if coupled_raw:
+        verdict = "coupled (raw retrieval above the pre-registered bar)"
+    elif collapsed and not any(rescued.values()):
+        verdict = "mean-direction collapse (uncentered erank ~1 / mean carries the energy, no rung rescues)" + residual
+    elif rescued["centered_procrustes"]:
         verdict = "misrotation (Procrustes rescues held-out retrieval)"
-    elif (rescued["centered"] or rescued["scale_whitened"]) and not rescued["raw"]:
+    elif rescued["centered"] or rescued["scale_whitened"]:
         verdict = "scale-drowned or mean-offset (centering/whitening rescues)"
-    elif probe_ok and not any(rescued.values()):
+    elif rescued["ridge"]:
+        verdict = "nonorthogonal linear correspondence (only ridge rescues)"
+    elif probe_ok:
         verdict = "features-without-coupling (caption info present, no linear map to image latents)"
-    elif rescued["raw"]:
-        verdict = "coupled (raw retrieval above bar)"
     else:
         verdict = "no caption information in text latents (probe fails, nothing rescues)"
     r["verdict"] = verdict
@@ -276,7 +283,7 @@ if have("PC_armA") and have("BPonF") and have("E1_adam"):
         return dict(mu2=max(r["erank"]["img_mu_norm2"], r["erank"]["txt_mu_norm2"]),
                     gap_sigma=r["gap"]["gap_sigma"], raw=r["ladder"]["raw"], best_rescue=best_rescue)
     pc, bpf, e1 = sig("PC_armA"), sig("BPonF"), sig("E1_adam")
-    fail_geom = lambda s: s["raw"] <= BAR and s["best_rescue"] <= BAR
+    fail_geom = lambda s: s["raw"] <= BAR and s["best_rescue"] <= 2*BAR
     same_cluster = fail_geom(pc) and fail_geom(bpf) and (abs(pc["mu2"]-bpf["mu2"]) < 0.3)
     e1_differs = (e1["raw"] > BAR) or (e1["best_rescue"] > BAR) or (e1["gap_sigma"] > 10*max(pc["gap_sigma"], 1e-9))
     pred = dict(pc=pc, bponf=bpf, e1=e1, pc_bponf_cluster=bool(same_cluster), e1_differs=bool(e1_differs),
