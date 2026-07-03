@@ -38,7 +38,8 @@ import numpy as np
 import tensorflow as tf
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 
-tf.random.set_seed(0); np.random.seed(0)
+DISSOC_SEED = int(os.environ.get("DISSOC_SEED", 42))  # default 42 preserves the original run exactly
+tf.random.set_seed(0 if DISSOC_SEED == 42 else DISSOC_SEED); np.random.seed(0 if DISSOC_SEED == 42 else DISSOC_SEED)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---- bench sizes (credibly sized, not a toy, but CPU-affordable) ----
@@ -70,7 +71,7 @@ def f(z): return tf.nn.relu(z)
 def mse(a, b): return tf.reduce_mean(tf.reshape(a - b, [tf.shape(a)[0], -1]) ** 2, axis=1)
 
 def build(LAT):
-    g = tf.random.Generator.from_seed(42)                                                    # identical init across cells
+    g = tf.random.Generator.from_seed(DISSOC_SEED)                                             # identical init across cells
     def W(sh): return tf.Variable(g.normal(sh, stddev=1.0 / np.sqrt(np.prod(sh[:-1]))))
     def Z(sh): return tf.Variable(tf.zeros(sh))
     return dict(
