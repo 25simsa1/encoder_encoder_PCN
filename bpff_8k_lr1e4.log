@@ -1,0 +1,928 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1783106177.126963  308900 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1783106178.872992  308900 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+=== BPonF FREE-LATENT (backprop Adam on F THROUGH the unrolled 8-step relaxation) === smoke=False COCO=train2017 n_train=8000 n_eval=2000 seeds=[0] lr=0.0001 epochs=150 batchj=32 | bar: held-out lat_retr > 3/2000 | fit gate = outcome, not void
+[data] reused cache (22000, 64, 64, 3)
+
+----- BPonF-free seed 0: train=8000 eval=2000 V=49 params=156.7M | Adam lr=0.0001 batchj=32 epochs=150 (37500 steps, ramp 300) | 8-step UNROLLED relaxation in training | chance eval=0.00050
+  [probe] S-update trace (relaxation INSIDE the training graph):
+    relax step 1/8: F_sum=0.18960 mean|dS|=9.564e-07
+    relax step 2/8: F_sum=0.18960 mean|dS|=8.608e-07
+    relax step 3/8: F_sum=0.18960 mean|dS|=7.747e-07
+    relax step 4/8: F_sum=0.18960 mean|dS|=6.972e-07
+    relax step 5/8: F_sum=0.18960 mean|dS|=6.275e-07
+    relax step 6/8: F_sum=0.18960 mean|dS|=5.648e-07
+    relax step 7/8: F_sum=0.18960 mean|dS|=5.083e-07
+    relax step 8/8: F_sum=0.18960 mean|dS|=4.575e-07
+  grad coverage THROUGH the unrolled relaxation: 68/68 tensors receive non-None grads | decoder/proj tensors with grads: 8/8 -> ['B_DI', 'B_DT', 'W_DI', 'W_DT', 'proj0', 'proj1', 'proj2', 'proj3']
+  trajectory contribution (rel grad diff, unrolled vs detached-S): max=7.720e-04 on W_DI; top5=[('W_DI', '7.72e-04'), ('W_DT', '7.64e-04'), ('Wq0', '2.34e-04'), ('Wk0', '2.27e-04'), ('Wi1', '2.04e-04')]
+    [bpf]    50/37500 F=8.9616e-02 move=0.8% lr=1.7e-05 t=0.3m
+    [bpf]   100/37500 F=9.2146e-02 move=1.5% lr=3.3e-05 t=0.4m
+    [bpf]   150/37500 F=8.7454e-02 move=3.6% lr=5.0e-05 t=0.5m
+    [bpf]   200/37500 F=7.5635e-02 move=4.7% lr=6.7e-05 t=0.6m
+    [bpf]   250/37500 F=7.4985e-02 move=5.3% lr=8.3e-05 t=0.8m
+    [bpf]   250/37500 train lat_retr=0.001 align=0.884 (best 0.001, gate 0.95)
+    [bpf]   300/37500 F=7.1476e-02 move=6.9% lr=1.0e-04 t=0.9m
+    [bpf]   350/37500 F=6.2775e-02 move=8.3% lr=1.0e-04 t=1.1m
+    [bpf]   400/37500 F=5.7998e-02 move=9.0% lr=1.0e-04 t=1.2m
+    [bpf]   450/37500 F=5.9704e-02 move=9.7% lr=1.0e-04 t=1.3m
+    [bpf]   500/37500 F=5.4169e-02 move=10.5% lr=1.0e-04 t=1.4m
+    [bpf]   500/37500 train lat_retr=0.001 align=0.968 (best 0.001, gate 0.95)
+    [bpf]   550/37500 F=6.1885e-02 move=11.0% lr=1.0e-04 t=1.6m
+    [bpf]   600/37500 F=5.2170e-02 move=11.4% lr=1.0e-04 t=1.7m
+    [bpf]   650/37500 F=5.1739e-02 move=11.7% lr=1.0e-04 t=1.8m
+    [bpf]   700/37500 F=5.2906e-02 move=12.2% lr=1.0e-04 t=1.9m
+    [bpf]   750/37500 F=5.4289e-02 move=12.6% lr=1.0e-04 t=2.1m
+    [bpf]   750/37500 train lat_retr=0.001 align=0.931 (best 0.001, gate 0.95)
+    [bpf]   800/37500 F=5.6195e-02 move=12.9% lr=1.0e-04 t=2.2m
+    [bpf]   850/37500 F=5.1217e-02 move=13.2% lr=1.0e-04 t=2.3m
+    [bpf]   900/37500 F=5.2633e-02 move=13.5% lr=1.0e-04 t=2.5m
+    [bpf]   950/37500 F=5.1704e-02 move=13.7% lr=1.0e-04 t=2.6m
+    [bpf]  1000/37500 F=5.5349e-02 move=13.9% lr=1.0e-04 t=2.7m
+    [bpf]  1000/37500 train lat_retr=0.001 align=0.911 (best 0.001, gate 0.95)
+    [bpf]  1050/37500 F=5.2183e-02 move=14.2% lr=1.0e-04 t=2.9m
+    [bpf]  1100/37500 F=4.8007e-02 move=14.4% lr=1.0e-04 t=3.0m
+    [bpf]  1150/37500 F=4.9509e-02 move=14.6% lr=1.0e-04 t=3.1m
+    [bpf]  1200/37500 F=5.2315e-02 move=14.8% lr=1.0e-04 t=3.3m
+    [bpf]  1250/37500 F=5.4189e-02 move=15.0% lr=1.0e-04 t=3.4m
+    [bpf]  1250/37500 train lat_retr=0.001 align=0.901 (best 0.001, gate 0.95)
+    [bpf]  1300/37500 F=4.9912e-02 move=15.2% lr=1.0e-04 t=3.5m
+    [bpf]  1350/37500 F=5.1880e-02 move=15.4% lr=1.0e-04 t=3.7m
+    [bpf]  1400/37500 F=5.0999e-02 move=15.5% lr=1.0e-04 t=3.8m
+    [bpf]  1450/37500 F=5.0328e-02 move=15.7% lr=1.0e-04 t=3.9m
+    [bpf]  1500/37500 F=5.2708e-02 move=15.8% lr=1.0e-04 t=4.0m
+    [bpf]  1500/37500 train lat_retr=0.001 align=0.897 (best 0.001, gate 0.95)
+    [bpf]  1550/37500 F=4.9588e-02 move=16.0% lr=1.0e-04 t=4.2m
+    [bpf]  1600/37500 F=4.9082e-02 move=16.1% lr=1.0e-04 t=4.3m
+    [bpf]  1650/37500 F=5.0535e-02 move=16.2% lr=1.0e-04 t=4.4m
+    [bpf]  1700/37500 F=5.1091e-02 move=16.3% lr=1.0e-04 t=4.6m
+    [bpf]  1750/37500 F=5.0228e-02 move=16.4% lr=1.0e-04 t=4.7m
+    [bpf]  1750/37500 train lat_retr=0.001 align=0.891 (best 0.001, gate 0.95)
+    [bpf]  1800/37500 F=5.2158e-02 move=16.5% lr=1.0e-04 t=4.8m
+    [bpf]  1850/37500 F=4.7730e-02 move=16.6% lr=1.0e-04 t=4.9m
+    [bpf]  1900/37500 F=5.3759e-02 move=16.8% lr=1.0e-04 t=5.1m
+    [bpf]  1950/37500 F=5.0137e-02 move=16.9% lr=1.0e-04 t=5.2m
+    [bpf]  2000/37500 F=4.9386e-02 move=17.0% lr=1.0e-04 t=5.3m
+    [bpf]  2000/37500 train lat_retr=0.000 align=0.894 (best 0.001, gate 0.95)
+    [bpf]  2050/37500 F=4.6594e-02 move=17.1% lr=1.0e-04 t=5.5m
+    [bpf]  2100/37500 F=4.9247e-02 move=17.2% lr=1.0e-04 t=5.6m
+    [bpf]  2150/37500 F=4.6287e-02 move=17.3% lr=1.0e-04 t=5.7m
+    [bpf]  2200/37500 F=4.9729e-02 move=17.4% lr=1.0e-04 t=5.8m
+    [bpf]  2250/37500 F=4.3668e-02 move=17.5% lr=1.0e-04 t=6.0m
+    [bpf]  2250/37500 train lat_retr=0.001 align=0.896 (best 0.001, gate 0.95)
+    [bpf]  2300/37500 F=5.0882e-02 move=17.6% lr=1.0e-04 t=6.1m
+    [bpf]  2350/37500 F=5.4035e-02 move=17.7% lr=1.0e-04 t=6.2m
+    [bpf]  2400/37500 F=4.9558e-02 move=17.8% lr=1.0e-04 t=6.4m
+    [bpf]  2450/37500 F=5.1405e-02 move=17.9% lr=1.0e-04 t=6.5m
+    [bpf]  2500/37500 F=4.8808e-02 move=18.0% lr=1.0e-04 t=6.6m
+    [bpf]  2500/37500 train lat_retr=0.001 align=0.894 (best 0.001, gate 0.95)
+    [bpf]  2550/37500 F=4.7745e-02 move=18.1% lr=1.0e-04 t=6.8m
+    [bpf]  2600/37500 F=4.9928e-02 move=18.2% lr=1.0e-04 t=6.9m
+    [bpf]  2650/37500 F=5.2493e-02 move=18.3% lr=1.0e-04 t=7.0m
+    [bpf]  2700/37500 F=5.3659e-02 move=18.4% lr=1.0e-04 t=7.1m
+    [bpf]  2750/37500 F=5.4708e-02 move=18.4% lr=1.0e-04 t=7.3m
+    [bpf]  2750/37500 train lat_retr=0.001 align=0.897 (best 0.001, gate 0.95)
+    [bpf]  2800/37500 F=4.7606e-02 move=18.6% lr=1.0e-04 t=7.4m
+    [bpf]  2850/37500 F=5.0003e-02 move=18.7% lr=1.0e-04 t=7.5m
+    [bpf]  2900/37500 F=4.5961e-02 move=18.8% lr=1.0e-04 t=7.6m
+    [bpf]  2950/37500 F=4.6926e-02 move=18.9% lr=1.0e-04 t=7.8m
+    [bpf]  3000/37500 F=5.1667e-02 move=19.0% lr=1.0e-04 t=7.9m
+    [bpf]  3000/37500 train lat_retr=0.001 align=0.906 (best 0.001, gate 0.95)
+    [bpf]  3050/37500 F=5.2895e-02 move=19.1% lr=1.0e-04 t=8.0m
+    [bpf]  3100/37500 F=4.9270e-02 move=19.2% lr=1.0e-04 t=8.2m
+    [bpf]  3150/37500 F=4.7984e-02 move=19.3% lr=1.0e-04 t=8.3m
+    [bpf]  3200/37500 F=4.7300e-02 move=19.5% lr=1.0e-04 t=8.4m
+    [bpf]  3250/37500 F=4.5595e-02 move=19.5% lr=1.0e-04 t=8.5m
+    [bpf]  3250/37500 train lat_retr=0.001 align=0.893 (best 0.001, gate 0.95)
+    [bpf]  3300/37500 F=4.6379e-02 move=19.6% lr=1.0e-04 t=8.7m
+    [bpf]  3350/37500 F=4.7400e-02 move=19.7% lr=1.0e-04 t=8.8m
+    [bpf]  3400/37500 F=4.9039e-02 move=19.8% lr=1.0e-04 t=8.9m
+    [bpf]  3450/37500 F=4.7130e-02 move=19.9% lr=1.0e-04 t=9.0m
+    [bpf]  3500/37500 F=4.5200e-02 move=20.0% lr=1.0e-04 t=9.2m
+    [bpf]  3500/37500 train lat_retr=0.002 align=0.896 (best 0.002, gate 0.95)
+    [bpf]  3550/37500 F=4.8289e-02 move=20.1% lr=1.0e-04 t=9.3m
+    [bpf]  3600/37500 F=4.7813e-02 move=20.2% lr=1.0e-04 t=9.4m
+    [bpf]  3650/37500 F=4.8150e-02 move=20.3% lr=1.0e-04 t=9.6m
+    [bpf]  3700/37500 F=4.4642e-02 move=20.4% lr=1.0e-04 t=9.7m
+    [bpf]  3750/37500 F=4.6075e-02 move=20.5% lr=1.0e-04 t=9.8m
+    [bpf]  3750/37500 train lat_retr=0.002 align=0.894 (best 0.002, gate 0.95)
+    [bpf]  3800/37500 F=5.1006e-02 move=20.6% lr=1.0e-04 t=10.0m
+    [bpf]  3850/37500 F=4.3935e-02 move=20.6% lr=1.0e-04 t=10.1m
+    [bpf]  3900/37500 F=4.9750e-02 move=20.7% lr=1.0e-04 t=10.2m
+    [bpf]  3950/37500 F=5.3304e-02 move=20.8% lr=1.0e-04 t=10.3m
+    [bpf]  4000/37500 F=4.5901e-02 move=20.9% lr=1.0e-04 t=10.5m
+    [bpf]  4000/37500 train lat_retr=0.001 align=0.902 (best 0.002, gate 0.95)
+    [bpf]  4050/37500 F=5.1080e-02 move=21.0% lr=1.0e-04 t=10.6m
+    [bpf]  4100/37500 F=5.2923e-02 move=21.1% lr=1.0e-04 t=10.7m
+    [bpf]  4150/37500 F=5.5564e-02 move=21.2% lr=1.0e-04 t=10.9m
+    [bpf]  4200/37500 F=4.8554e-02 move=21.2% lr=1.0e-04 t=11.0m
+    [bpf]  4250/37500 F=5.0795e-02 move=21.3% lr=1.0e-04 t=11.1m
+    [bpf]  4250/37500 train lat_retr=0.001 align=0.903 (best 0.002, gate 0.95)
+    [bpf]  4300/37500 F=4.7201e-02 move=21.4% lr=1.0e-04 t=11.3m
+    [bpf]  4350/37500 F=5.3137e-02 move=21.5% lr=1.0e-04 t=11.4m
+    [bpf]  4400/37500 F=4.8781e-02 move=21.6% lr=1.0e-04 t=11.5m
+    [bpf]  4450/37500 F=4.6694e-02 move=21.7% lr=1.0e-04 t=11.6m
+    [bpf]  4500/37500 F=4.9225e-02 move=21.8% lr=1.0e-04 t=11.8m
+    [bpf]  4500/37500 train lat_retr=0.001 align=0.905 (best 0.002, gate 0.95)
+    [bpf]  4550/37500 F=4.6357e-02 move=21.9% lr=1.0e-04 t=11.9m
+    [bpf]  4600/37500 F=4.8837e-02 move=22.1% lr=1.0e-04 t=12.0m
+    [bpf]  4650/37500 F=4.9194e-02 move=22.2% lr=1.0e-04 t=12.1m
+    [bpf]  4700/37500 F=4.5385e-02 move=22.3% lr=1.0e-04 t=12.3m
+    [bpf]  4750/37500 F=4.7650e-02 move=22.4% lr=1.0e-04 t=12.4m
+    [bpf]  4750/37500 train lat_retr=0.001 align=0.910 (best 0.002, gate 0.95)
+    [bpf]  4800/37500 F=5.0411e-02 move=22.5% lr=1.0e-04 t=12.5m
+    [bpf]  4850/37500 F=4.7660e-02 move=22.7% lr=1.0e-04 t=12.7m
+    [bpf]  4900/37500 F=4.6827e-02 move=22.8% lr=1.0e-04 t=12.8m
+    [bpf]  4950/37500 F=5.3924e-02 move=22.9% lr=1.0e-04 t=12.9m
+    [bpf]  5000/37500 F=5.0703e-02 move=23.1% lr=1.0e-04 t=13.0m
+    [bpf]  5000/37500 train lat_retr=0.001 align=0.903 (best 0.002, gate 0.95)
+    [bpf]  5050/37500 F=5.1039e-02 move=23.2% lr=1.0e-04 t=13.2m
+    [bpf]  5100/37500 F=5.0857e-02 move=23.3% lr=1.0e-04 t=13.3m
+    [bpf]  5150/37500 F=5.0475e-02 move=23.4% lr=1.0e-04 t=13.4m
+    [bpf]  5200/37500 F=4.9544e-02 move=23.6% lr=1.0e-04 t=13.6m
+    [bpf]  5250/37500 F=4.5509e-02 move=23.7% lr=1.0e-04 t=13.7m
+    [bpf]  5250/37500 train lat_retr=0.003 align=0.904 (best 0.003, gate 0.95)
+    [bpf]  5300/37500 F=4.8477e-02 move=23.9% lr=1.0e-04 t=13.8m
+    [bpf]  5350/37500 F=4.9949e-02 move=24.0% lr=1.0e-04 t=13.9m
+    [bpf]  5400/37500 F=4.8067e-02 move=24.1% lr=1.0e-04 t=14.1m
+    [bpf]  5450/37500 F=4.7008e-02 move=24.2% lr=1.0e-04 t=14.2m
+    [bpf]  5500/37500 F=4.8619e-02 move=24.4% lr=1.0e-04 t=14.3m
+    [bpf]  5500/37500 train lat_retr=0.001 align=0.908 (best 0.003, gate 0.95)
+    [bpf]  5550/37500 F=5.1053e-02 move=24.5% lr=1.0e-04 t=14.5m
+    [bpf]  5600/37500 F=4.7016e-02 move=24.6% lr=1.0e-04 t=14.6m
+    [bpf]  5650/37500 F=5.2254e-02 move=24.7% lr=1.0e-04 t=14.7m
+    [bpf]  5700/37500 F=4.8289e-02 move=24.8% lr=1.0e-04 t=14.8m
+    [bpf]  5750/37500 F=4.8354e-02 move=24.9% lr=1.0e-04 t=15.0m
+    [bpf]  5750/37500 train lat_retr=0.002 align=0.911 (best 0.003, gate 0.95)
+    [bpf]  5800/37500 F=4.9084e-02 move=25.0% lr=1.0e-04 t=15.1m
+    [bpf]  5850/37500 F=4.8889e-02 move=25.1% lr=1.0e-04 t=15.2m
+    [bpf]  5900/37500 F=4.8884e-02 move=25.2% lr=1.0e-04 t=15.4m
+    [bpf]  5950/37500 F=4.4146e-02 move=25.3% lr=1.0e-04 t=15.5m
+    [bpf]  6000/37500 F=4.7438e-02 move=25.4% lr=1.0e-04 t=15.6m
+    [bpf]  6000/37500 train lat_retr=0.001 align=0.919 (best 0.003, gate 0.95)
+    [bpf]  6050/37500 F=4.3984e-02 move=25.5% lr=1.0e-04 t=15.8m
+    [bpf]  6100/37500 F=4.7183e-02 move=25.6% lr=1.0e-04 t=15.9m
+    [bpf]  6150/37500 F=5.0761e-02 move=25.7% lr=1.0e-04 t=16.0m
+    [bpf]  6200/37500 F=4.9594e-02 move=25.8% lr=1.0e-04 t=16.1m
+    [bpf]  6250/37500 F=4.8180e-02 move=25.9% lr=1.0e-04 t=16.3m
+    [bpf]  6250/37500 train lat_retr=0.001 align=0.910 (best 0.003, gate 0.95)
+    [bpf]  6300/37500 F=4.5232e-02 move=26.0% lr=1.0e-04 t=16.4m
+    [bpf]  6350/37500 F=4.5515e-02 move=26.1% lr=1.0e-04 t=16.5m
+    [bpf]  6400/37500 F=4.4030e-02 move=26.2% lr=1.0e-04 t=16.7m
+    [bpf]  6450/37500 F=4.7870e-02 move=26.3% lr=1.0e-04 t=16.8m
+    [bpf]  6500/37500 F=4.5832e-02 move=26.4% lr=1.0e-04 t=16.9m
+    [bpf]  6500/37500 train lat_retr=0.001 align=0.916 (best 0.003, gate 0.95)
+    [bpf]  6550/37500 F=4.7373e-02 move=26.5% lr=1.0e-04 t=17.1m
+    [bpf]  6600/37500 F=4.8105e-02 move=26.6% lr=1.0e-04 t=17.2m
+    [bpf]  6650/37500 F=4.8400e-02 move=26.8% lr=1.0e-04 t=17.3m
+    [bpf]  6700/37500 F=4.4678e-02 move=26.9% lr=1.0e-04 t=17.4m
+    [bpf]  6750/37500 F=4.8051e-02 move=27.0% lr=1.0e-04 t=17.6m
+    [bpf]  6750/37500 train lat_retr=0.001 align=0.908 (best 0.003, gate 0.95)
+    [bpf]  6800/37500 F=4.3951e-02 move=27.1% lr=1.0e-04 t=17.7m
+    [bpf]  6850/37500 F=4.5325e-02 move=27.2% lr=1.0e-04 t=17.8m
+    [bpf]  6900/37500 F=4.5218e-02 move=27.3% lr=1.0e-04 t=18.0m
+    [bpf]  6950/37500 F=4.9088e-02 move=27.4% lr=1.0e-04 t=18.1m
+    [bpf]  7000/37500 F=4.7566e-02 move=27.6% lr=1.0e-04 t=18.2m
+    [bpf]  7000/37500 train lat_retr=0.001 align=0.910 (best 0.003, gate 0.95)
+    [bpf]  7050/37500 F=3.8274e-02 move=27.7% lr=1.0e-04 t=18.4m
+    [bpf]  7100/37500 F=4.7029e-02 move=27.9% lr=1.0e-04 t=18.5m
+    [bpf]  7150/37500 F=4.9953e-02 move=28.0% lr=1.0e-04 t=18.6m
+    [bpf]  7200/37500 F=4.6893e-02 move=28.1% lr=1.0e-04 t=18.7m
+    [bpf]  7250/37500 F=4.0758e-02 move=28.3% lr=1.0e-04 t=18.9m
+    [bpf]  7250/37500 train lat_retr=0.001 align=0.912 (best 0.003, gate 0.95)
+    [bpf]  7300/37500 F=4.5923e-02 move=28.4% lr=1.0e-04 t=19.0m
+    [bpf]  7350/37500 F=4.6595e-02 move=28.6% lr=1.0e-04 t=19.1m
+    [bpf]  7400/37500 F=4.7846e-02 move=28.7% lr=1.0e-04 t=19.2m
+    [bpf]  7450/37500 F=4.2948e-02 move=28.8% lr=1.0e-04 t=19.4m
+    [bpf]  7500/37500 F=4.8430e-02 move=28.9% lr=1.0e-04 t=19.5m
+    [bpf]  7500/37500 train lat_retr=0.001 align=0.913 (best 0.003, gate 0.95)
+    [bpf]  7550/37500 F=4.5720e-02 move=29.0% lr=1.0e-04 t=19.6m
+    [bpf]  7600/37500 F=4.5362e-02 move=29.2% lr=1.0e-04 t=19.8m
+    [bpf]  7650/37500 F=4.8768e-02 move=29.3% lr=1.0e-04 t=19.9m
+    [bpf]  7700/37500 F=4.5458e-02 move=29.4% lr=1.0e-04 t=20.0m
+    [bpf]  7750/37500 F=4.4820e-02 move=29.5% lr=1.0e-04 t=20.1m
+    [bpf]  7750/37500 train lat_retr=0.001 align=0.911 (best 0.003, gate 0.95)
+    [bpf]  7800/37500 F=4.8598e-02 move=29.6% lr=1.0e-04 t=20.3m
+    [bpf]  7850/37500 F=4.3960e-02 move=29.7% lr=1.0e-04 t=20.4m
+    [bpf]  7900/37500 F=4.4429e-02 move=29.8% lr=1.0e-04 t=20.5m
+    [bpf]  7950/37500 F=4.5384e-02 move=29.9% lr=1.0e-04 t=20.7m
+    [bpf]  8000/37500 F=3.9419e-02 move=30.0% lr=1.0e-04 t=20.8m
+    [bpf]  8000/37500 train lat_retr=0.001 align=0.914 (best 0.003, gate 0.95)
+    [bpf]  8050/37500 F=3.9972e-02 move=30.1% lr=1.0e-04 t=20.9m
+    [bpf]  8100/37500 F=4.5084e-02 move=30.2% lr=1.0e-04 t=21.1m
+    [bpf]  8150/37500 F=4.4554e-02 move=30.3% lr=1.0e-04 t=21.2m
+    [bpf]  8200/37500 F=4.4496e-02 move=30.4% lr=1.0e-04 t=21.3m
+    [bpf]  8250/37500 F=4.7445e-02 move=30.5% lr=1.0e-04 t=21.4m
+    [bpf]  8250/37500 train lat_retr=0.001 align=0.907 (best 0.003, gate 0.95)
+    [bpf]  8300/37500 F=4.2535e-02 move=30.6% lr=1.0e-04 t=21.6m
+    [bpf]  8350/37500 F=4.4585e-02 move=30.7% lr=1.0e-04 t=21.7m
+    [bpf]  8400/37500 F=4.2149e-02 move=30.8% lr=1.0e-04 t=21.8m
+    [bpf]  8450/37500 F=4.5659e-02 move=30.9% lr=1.0e-04 t=22.0m
+    [bpf]  8500/37500 F=4.5866e-02 move=31.0% lr=1.0e-04 t=22.1m
+    [bpf]  8500/37500 train lat_retr=0.001 align=0.903 (best 0.003, gate 0.95)
+    [bpf]  8550/37500 F=4.3474e-02 move=31.1% lr=1.0e-04 t=22.2m
+    [bpf]  8600/37500 F=4.2558e-02 move=31.2% lr=1.0e-04 t=22.4m
+    [bpf]  8650/37500 F=4.1949e-02 move=31.3% lr=1.0e-04 t=22.5m
+    [bpf]  8700/37500 F=4.5352e-02 move=31.4% lr=1.0e-04 t=22.6m
+    [bpf]  8750/37500 F=4.6537e-02 move=31.5% lr=1.0e-04 t=22.7m
+    [bpf]  8750/37500 train lat_retr=0.001 align=0.906 (best 0.003, gate 0.95)
+    [bpf]  8800/37500 F=4.7859e-02 move=31.6% lr=1.0e-04 t=22.9m
+    [bpf]  8850/37500 F=4.5350e-02 move=31.7% lr=1.0e-04 t=23.0m
+    [bpf]  8900/37500 F=4.4879e-02 move=31.8% lr=1.0e-04 t=23.1m
+    [bpf]  8950/37500 F=4.2145e-02 move=31.9% lr=1.0e-04 t=23.3m
+    [bpf]  9000/37500 F=4.2216e-02 move=32.0% lr=1.0e-04 t=23.4m
+    [bpf]  9000/37500 train lat_retr=0.001 align=0.899 (best 0.003, gate 0.95)
+    [bpf]  9050/37500 F=4.7278e-02 move=32.1% lr=1.0e-04 t=23.5m
+    [bpf]  9100/37500 F=4.0481e-02 move=32.2% lr=1.0e-04 t=23.7m
+    [bpf]  9150/37500 F=4.1420e-02 move=32.3% lr=1.0e-04 t=23.8m
+    [bpf]  9200/37500 F=4.4185e-02 move=32.3% lr=1.0e-04 t=23.9m
+    [bpf]  9250/37500 F=4.6960e-02 move=32.4% lr=1.0e-04 t=24.0m
+    [bpf]  9250/37500 train lat_retr=0.001 align=0.901 (best 0.003, gate 0.95)
+    [bpf]  9300/37500 F=4.1052e-02 move=32.5% lr=1.0e-04 t=24.2m
+    [bpf]  9350/37500 F=4.4160e-02 move=32.6% lr=1.0e-04 t=24.3m
+    [bpf]  9400/37500 F=4.2148e-02 move=32.7% lr=1.0e-04 t=24.4m
+    [bpf]  9450/37500 F=4.4836e-02 move=32.8% lr=1.0e-04 t=24.6m
+    [bpf]  9500/37500 F=4.2190e-02 move=32.9% lr=1.0e-04 t=24.7m
+    [bpf]  9500/37500 train lat_retr=0.001 align=0.907 (best 0.003, gate 0.95)
+    [bpf]  9550/37500 F=4.1228e-02 move=33.0% lr=1.0e-04 t=24.8m
+    [bpf]  9600/37500 F=4.4394e-02 move=33.1% lr=1.0e-04 t=24.9m
+    [bpf]  9650/37500 F=4.7985e-02 move=33.2% lr=1.0e-04 t=25.1m
+    [bpf]  9700/37500 F=4.2302e-02 move=33.3% lr=1.0e-04 t=25.2m
+    [bpf]  9750/37500 F=3.7856e-02 move=33.4% lr=1.0e-04 t=25.3m
+    [bpf]  9750/37500 train lat_retr=0.001 align=0.904 (best 0.003, gate 0.95)
+    [bpf]  9800/37500 F=4.4346e-02 move=33.5% lr=1.0e-04 t=25.5m
+    [bpf]  9850/37500 F=4.0496e-02 move=33.6% lr=1.0e-04 t=25.6m
+    [bpf]  9900/37500 F=4.3683e-02 move=33.7% lr=1.0e-04 t=25.7m
+    [bpf]  9950/37500 F=4.2278e-02 move=33.8% lr=1.0e-04 t=25.8m
+    [bpf] 10000/37500 F=4.7228e-02 move=33.9% lr=1.0e-04 t=26.0m
+    [bpf] 10000/37500 train lat_retr=0.001 align=0.906 (best 0.003, gate 0.95)
+    [bpf] 10050/37500 F=4.1729e-02 move=34.0% lr=1.0e-04 t=26.1m
+    [bpf] 10100/37500 F=4.2043e-02 move=34.1% lr=1.0e-04 t=26.2m
+    [bpf] 10150/37500 F=4.3652e-02 move=34.2% lr=1.0e-04 t=26.3m
+    [bpf] 10200/37500 F=4.6882e-02 move=34.3% lr=1.0e-04 t=26.5m
+    [bpf] 10250/37500 F=4.6822e-02 move=34.4% lr=1.0e-04 t=26.6m
+    [bpf] 10250/37500 train lat_retr=0.001 align=0.904 (best 0.003, gate 0.95)
+    [bpf] 10300/37500 F=4.2147e-02 move=34.6% lr=1.0e-04 t=26.7m
+    [bpf] 10350/37500 F=4.2467e-02 move=34.7% lr=1.0e-04 t=26.9m
+    [bpf] 10400/37500 F=4.4140e-02 move=34.8% lr=1.0e-04 t=27.0m
+    [bpf] 10450/37500 F=4.2108e-02 move=34.9% lr=1.0e-04 t=27.1m
+    [bpf] 10500/37500 F=4.3877e-02 move=35.0% lr=1.0e-04 t=27.2m
+    [bpf] 10500/37500 train lat_retr=0.001 align=0.906 (best 0.003, gate 0.95)
+    [bpf] 10550/37500 F=4.6924e-02 move=35.1% lr=1.0e-04 t=27.4m
+    [bpf] 10600/37500 F=4.3244e-02 move=35.2% lr=1.0e-04 t=27.5m
+    [bpf] 10650/37500 F=4.5212e-02 move=35.3% lr=1.0e-04 t=27.6m
+    [bpf] 10700/37500 F=4.4759e-02 move=35.4% lr=1.0e-04 t=27.7m
+    [bpf] 10750/37500 F=4.7693e-02 move=35.4% lr=1.0e-04 t=27.9m
+    [bpf] 10750/37500 train lat_retr=0.001 align=0.909 (best 0.003, gate 0.95)
+    [bpf] 10800/37500 F=4.1159e-02 move=35.5% lr=1.0e-04 t=28.0m
+    [bpf] 10850/37500 F=4.2874e-02 move=35.6% lr=1.0e-04 t=28.1m
+    [bpf] 10900/37500 F=4.4739e-02 move=35.7% lr=1.0e-04 t=28.3m
+    [bpf] 10950/37500 F=4.3875e-02 move=35.8% lr=1.0e-04 t=28.4m
+    [bpf] 11000/37500 F=4.5107e-02 move=35.9% lr=1.0e-04 t=28.5m
+    [bpf] 11000/37500 train lat_retr=0.001 align=0.906 (best 0.003, gate 0.95)
+    [bpf] 11050/37500 F=4.3417e-02 move=36.0% lr=1.0e-04 t=28.7m
+    [bpf] 11100/37500 F=4.5057e-02 move=36.1% lr=1.0e-04 t=28.8m
+    [bpf] 11150/37500 F=4.1208e-02 move=36.2% lr=1.0e-04 t=28.9m
+    [bpf] 11200/37500 F=4.1406e-02 move=36.3% lr=1.0e-04 t=29.0m
+    [bpf] 11250/37500 F=4.1433e-02 move=36.4% lr=1.0e-04 t=29.2m
+    [bpf] 11250/37500 train lat_retr=0.001 align=0.911 (best 0.003, gate 0.95)
+    [bpf] 11300/37500 F=4.3165e-02 move=36.5% lr=1.0e-04 t=29.3m
+    [bpf] 11350/37500 F=4.2329e-02 move=36.6% lr=1.0e-04 t=29.4m
+    [bpf] 11400/37500 F=4.1472e-02 move=36.7% lr=1.0e-04 t=29.6m
+    [bpf] 11450/37500 F=4.3096e-02 move=36.8% lr=1.0e-04 t=29.7m
+    [bpf] 11500/37500 F=4.3965e-02 move=36.9% lr=1.0e-04 t=29.8m
+    [bpf] 11500/37500 train lat_retr=0.002 align=0.910 (best 0.003, gate 0.95)
+    [bpf] 11550/37500 F=4.0118e-02 move=37.0% lr=1.0e-04 t=29.9m
+    [bpf] 11600/37500 F=4.3123e-02 move=37.1% lr=1.0e-04 t=30.1m
+    [bpf] 11650/37500 F=4.0317e-02 move=37.2% lr=1.0e-04 t=30.2m
+    [bpf] 11700/37500 F=4.3559e-02 move=37.3% lr=1.0e-04 t=30.3m
+    [bpf] 11750/37500 F=4.2271e-02 move=37.4% lr=1.0e-04 t=30.4m
+    [bpf] 11750/37500 train lat_retr=0.001 align=0.914 (best 0.003, gate 0.95)
+    [bpf] 11800/37500 F=3.9532e-02 move=37.5% lr=1.0e-04 t=30.6m
+    [bpf] 11850/37500 F=4.0354e-02 move=37.6% lr=1.0e-04 t=30.7m
+    [bpf] 11900/37500 F=4.1791e-02 move=37.7% lr=1.0e-04 t=30.8m
+    [bpf] 11950/37500 F=4.5029e-02 move=37.8% lr=1.0e-04 t=31.0m
+    [bpf] 12000/37500 F=4.4767e-02 move=37.9% lr=1.0e-04 t=31.1m
+    [bpf] 12000/37500 train lat_retr=0.001 align=0.917 (best 0.003, gate 0.95)
+    [bpf] 12050/37500 F=4.2325e-02 move=38.0% lr=1.0e-04 t=31.2m
+    [bpf] 12100/37500 F=4.7066e-02 move=38.1% lr=1.0e-04 t=31.4m
+    [bpf] 12150/37500 F=4.5952e-02 move=38.2% lr=1.0e-04 t=31.5m
+    [bpf] 12200/37500 F=4.0905e-02 move=38.3% lr=1.0e-04 t=31.6m
+    [bpf] 12250/37500 F=4.0841e-02 move=38.4% lr=1.0e-04 t=31.7m
+    [bpf] 12250/37500 train lat_retr=0.001 align=0.917 (best 0.003, gate 0.95)
+    [bpf] 12300/37500 F=4.0035e-02 move=38.5% lr=1.0e-04 t=31.9m
+    [bpf] 12350/37500 F=4.2095e-02 move=38.6% lr=1.0e-04 t=32.0m
+    [bpf] 12400/37500 F=4.4200e-02 move=38.7% lr=1.0e-04 t=32.1m
+    [bpf] 12450/37500 F=4.1228e-02 move=38.8% lr=1.0e-04 t=32.2m
+    [bpf] 12500/37500 F=4.4552e-02 move=38.9% lr=1.0e-04 t=32.4m
+    [bpf] 12500/37500 train lat_retr=0.001 align=0.921 (best 0.003, gate 0.95)
+    [bpf] 12550/37500 F=4.3001e-02 move=39.0% lr=1.0e-04 t=32.5m
+    [bpf] 12600/37500 F=4.4523e-02 move=39.1% lr=1.0e-04 t=32.6m
+    [bpf] 12650/37500 F=4.5896e-02 move=39.2% lr=1.0e-04 t=32.8m
+    [bpf] 12700/37500 F=4.2445e-02 move=39.3% lr=1.0e-04 t=32.9m
+    [bpf] 12750/37500 F=4.2791e-02 move=39.4% lr=1.0e-04 t=33.0m
+    [bpf] 12750/37500 train lat_retr=0.002 align=0.915 (best 0.003, gate 0.95)
+    [bpf] 12800/37500 F=4.4178e-02 move=39.5% lr=1.0e-04 t=33.1m
+    [bpf] 12850/37500 F=4.5927e-02 move=39.6% lr=1.0e-04 t=33.3m
+    [bpf] 12900/37500 F=4.0533e-02 move=39.7% lr=1.0e-04 t=33.4m
+    [bpf] 12950/37500 F=4.3710e-02 move=39.8% lr=1.0e-04 t=33.5m
+    [bpf] 13000/37500 F=4.5141e-02 move=39.9% lr=1.0e-04 t=33.6m
+    [bpf] 13000/37500 train lat_retr=0.002 align=0.915 (best 0.003, gate 0.95)
+    [bpf] 13050/37500 F=3.9952e-02 move=40.0% lr=1.0e-04 t=33.8m
+    [bpf] 13100/37500 F=4.1581e-02 move=40.1% lr=1.0e-04 t=33.9m
+    [bpf] 13150/37500 F=4.3645e-02 move=40.1% lr=1.0e-04 t=34.0m
+    [bpf] 13200/37500 F=4.1607e-02 move=40.2% lr=1.0e-04 t=34.2m
+    [bpf] 13250/37500 F=4.4938e-02 move=40.3% lr=1.0e-04 t=34.3m
+    [bpf] 13250/37500 train lat_retr=0.001 align=0.918 (best 0.003, gate 0.95)
+    [bpf] 13300/37500 F=4.1829e-02 move=40.4% lr=1.0e-04 t=34.4m
+    [bpf] 13350/37500 F=4.0594e-02 move=40.5% lr=1.0e-04 t=34.5m
+    [bpf] 13400/37500 F=3.9574e-02 move=40.6% lr=1.0e-04 t=34.7m
+    [bpf] 13450/37500 F=4.2169e-02 move=40.7% lr=1.0e-04 t=34.8m
+    [bpf] 13500/37500 F=4.2843e-02 move=40.8% lr=1.0e-04 t=34.9m
+    [bpf] 13500/37500 train lat_retr=0.001 align=0.920 (best 0.003, gate 0.95)
+    [bpf] 13550/37500 F=4.3285e-02 move=40.9% lr=1.0e-04 t=35.1m
+    [bpf] 13600/37500 F=4.2481e-02 move=41.0% lr=1.0e-04 t=35.2m
+    [bpf] 13650/37500 F=3.9299e-02 move=41.1% lr=1.0e-04 t=35.3m
+    [bpf] 13700/37500 F=4.4801e-02 move=41.2% lr=1.0e-04 t=35.4m
+    [bpf] 13750/37500 F=4.3031e-02 move=41.3% lr=1.0e-04 t=35.6m
+    [bpf] 13750/37500 train lat_retr=0.003 align=0.919 (best 0.003, gate 0.95)
+    [bpf] 13800/37500 F=4.3708e-02 move=41.4% lr=1.0e-04 t=35.7m
+    [bpf] 13850/37500 F=4.4368e-02 move=41.5% lr=1.0e-04 t=35.8m
+    [bpf] 13900/37500 F=4.6129e-02 move=41.6% lr=1.0e-04 t=36.0m
+    [bpf] 13950/37500 F=4.1868e-02 move=41.7% lr=1.0e-04 t=36.1m
+    [bpf] 14000/37500 F=3.9417e-02 move=41.8% lr=1.0e-04 t=36.2m
+    [bpf] 14000/37500 train lat_retr=0.001 align=0.916 (best 0.003, gate 0.95)
+    [bpf] 14050/37500 F=4.3641e-02 move=41.9% lr=1.0e-04 t=36.3m
+    [bpf] 14100/37500 F=4.1204e-02 move=42.0% lr=1.0e-04 t=36.5m
+    [bpf] 14150/37500 F=4.2778e-02 move=42.1% lr=1.0e-04 t=36.6m
+    [bpf] 14200/37500 F=4.1860e-02 move=42.2% lr=1.0e-04 t=36.7m
+    [bpf] 14250/37500 F=3.7152e-02 move=42.2% lr=1.0e-04 t=36.8m
+    [bpf] 14250/37500 train lat_retr=0.000 align=0.917 (best 0.003, gate 0.95)
+    [bpf] 14300/37500 F=4.1166e-02 move=42.3% lr=1.0e-04 t=37.0m
+    [bpf] 14350/37500 F=4.3171e-02 move=42.4% lr=1.0e-04 t=37.1m
+    [bpf] 14400/37500 F=4.4211e-02 move=42.5% lr=1.0e-04 t=37.2m
+    [bpf] 14450/37500 F=4.3585e-02 move=42.6% lr=1.0e-04 t=37.4m
+    [bpf] 14500/37500 F=4.2910e-02 move=42.7% lr=1.0e-04 t=37.5m
+    [bpf] 14500/37500 train lat_retr=0.004 align=0.920 (best 0.004, gate 0.95)
+    [bpf] 14550/37500 F=3.9661e-02 move=42.8% lr=1.0e-04 t=37.6m
+    [bpf] 14600/37500 F=4.2596e-02 move=42.9% lr=1.0e-04 t=37.7m
+    [bpf] 14650/37500 F=4.3073e-02 move=43.0% lr=1.0e-04 t=37.9m
+    [bpf] 14700/37500 F=4.2023e-02 move=43.1% lr=1.0e-04 t=38.0m
+    [bpf] 14750/37500 F=4.1457e-02 move=43.1% lr=1.0e-04 t=38.1m
+    [bpf] 14750/37500 train lat_retr=0.004 align=0.924 (best 0.004, gate 0.95)
+    [bpf] 14800/37500 F=4.1226e-02 move=43.3% lr=1.0e-04 t=38.3m
+    [bpf] 14850/37500 F=4.0716e-02 move=43.4% lr=1.0e-04 t=38.4m
+    [bpf] 14900/37500 F=3.9200e-02 move=43.5% lr=1.0e-04 t=38.5m
+    [bpf] 14950/37500 F=3.9485e-02 move=43.5% lr=1.0e-04 t=38.6m
+    [bpf] 15000/37500 F=4.3694e-02 move=43.6% lr=1.0e-04 t=38.8m
+    [bpf] 15000/37500 train lat_retr=0.003 align=0.921 (best 0.004, gate 0.95)
+    [bpf] 15050/37500 F=3.9129e-02 move=43.7% lr=1.0e-04 t=38.9m
+    [bpf] 15100/37500 F=4.0468e-02 move=43.9% lr=1.0e-04 t=39.0m
+    [bpf] 15150/37500 F=4.1294e-02 move=43.9% lr=1.0e-04 t=39.2m
+    [bpf] 15200/37500 F=4.2735e-02 move=44.0% lr=1.0e-04 t=39.3m
+    [bpf] 15250/37500 F=4.2501e-02 move=44.1% lr=1.0e-04 t=39.4m
+    [bpf] 15250/37500 train lat_retr=0.003 align=0.920 (best 0.004, gate 0.95)
+    [bpf] 15300/37500 F=4.0233e-02 move=44.2% lr=1.0e-04 t=39.5m
+    [bpf] 15350/37500 F=4.0347e-02 move=44.4% lr=1.0e-04 t=39.7m
+    [bpf] 15400/37500 F=3.7973e-02 move=44.5% lr=1.0e-04 t=39.8m
+    [bpf] 15450/37500 F=4.0950e-02 move=44.6% lr=1.0e-04 t=39.9m
+    [bpf] 15500/37500 F=4.3425e-02 move=44.7% lr=1.0e-04 t=40.0m
+    [bpf] 15500/37500 train lat_retr=0.003 align=0.919 (best 0.004, gate 0.95)
+    [bpf] 15550/37500 F=3.9072e-02 move=44.8% lr=1.0e-04 t=40.2m
+    [bpf] 15600/37500 F=4.4746e-02 move=44.9% lr=1.0e-04 t=40.3m
+    [bpf] 15650/37500 F=4.4952e-02 move=45.0% lr=1.0e-04 t=40.4m
+    [bpf] 15700/37500 F=3.9300e-02 move=45.1% lr=1.0e-04 t=40.6m
+    [bpf] 15750/37500 F=4.2029e-02 move=45.2% lr=1.0e-04 t=40.7m
+    [bpf] 15750/37500 train lat_retr=0.003 align=0.925 (best 0.004, gate 0.95)
+    [bpf] 15800/37500 F=3.9726e-02 move=45.4% lr=1.0e-04 t=40.8m
+    [bpf] 15850/37500 F=4.2164e-02 move=45.5% lr=1.0e-04 t=40.9m
+    [bpf] 15900/37500 F=3.8473e-02 move=45.6% lr=1.0e-04 t=41.1m
+    [bpf] 15950/37500 F=3.9381e-02 move=45.7% lr=1.0e-04 t=41.2m
+    [bpf] 16000/37500 F=4.1340e-02 move=45.8% lr=1.0e-04 t=41.3m
+    [bpf] 16000/37500 train lat_retr=0.003 align=0.920 (best 0.004, gate 0.95)
+    [bpf] 16050/37500 F=4.2061e-02 move=46.0% lr=1.0e-04 t=41.5m
+    [bpf] 16100/37500 F=4.2421e-02 move=46.1% lr=1.0e-04 t=41.6m
+    [bpf] 16150/37500 F=4.2825e-02 move=46.3% lr=1.0e-04 t=41.7m
+    [bpf] 16200/37500 F=3.9942e-02 move=46.3% lr=1.0e-04 t=41.8m
+    [bpf] 16250/37500 F=3.9350e-02 move=46.4% lr=1.0e-04 t=42.0m
+    [bpf] 16250/37500 train lat_retr=0.003 align=0.926 (best 0.004, gate 0.95)
+    [bpf] 16300/37500 F=4.4909e-02 move=46.6% lr=1.0e-04 t=42.1m
+    [bpf] 16350/37500 F=4.3247e-02 move=46.7% lr=1.0e-04 t=42.2m
+    [bpf] 16400/37500 F=4.4212e-02 move=46.8% lr=1.0e-04 t=42.3m
+    [bpf] 16450/37500 F=4.1305e-02 move=46.9% lr=1.0e-04 t=42.5m
+    [bpf] 16500/37500 F=4.1016e-02 move=47.0% lr=1.0e-04 t=42.6m
+    [bpf] 16500/37500 train lat_retr=0.009 align=0.930 (best 0.009, gate 0.95)
+    [bpf] 16550/37500 F=3.7408e-02 move=47.2% lr=1.0e-04 t=42.7m
+    [bpf] 16600/37500 F=4.0574e-02 move=47.3% lr=1.0e-04 t=42.9m
+    [bpf] 16650/37500 F=4.0294e-02 move=47.4% lr=1.0e-04 t=43.0m
+    [bpf] 16700/37500 F=4.1525e-02 move=47.5% lr=1.0e-04 t=43.1m
+    [bpf] 16750/37500 F=4.3195e-02 move=47.6% lr=1.0e-04 t=43.2m
+    [bpf] 16750/37500 train lat_retr=0.005 align=0.925 (best 0.009, gate 0.95)
+    [bpf] 16800/37500 F=4.2062e-02 move=47.8% lr=1.0e-04 t=43.4m
+    [bpf] 16850/37500 F=3.9182e-02 move=47.9% lr=1.0e-04 t=43.5m
+    [bpf] 16900/37500 F=4.3063e-02 move=48.0% lr=1.0e-04 t=43.6m
+    [bpf] 16950/37500 F=3.8239e-02 move=48.1% lr=1.0e-04 t=43.7m
+    [bpf] 17000/37500 F=3.9193e-02 move=48.2% lr=1.0e-04 t=43.9m
+    [bpf] 17000/37500 train lat_retr=0.012 align=0.934 (best 0.012, gate 0.95)
+    [bpf] 17050/37500 F=4.2495e-02 move=48.3% lr=1.0e-04 t=44.0m
+    [bpf] 17100/37500 F=3.8725e-02 move=48.5% lr=1.0e-04 t=44.1m
+    [bpf] 17150/37500 F=4.1047e-02 move=48.6% lr=1.0e-04 t=44.3m
+    [bpf] 17200/37500 F=4.1716e-02 move=48.7% lr=1.0e-04 t=44.4m
+    [bpf] 17250/37500 F=3.9305e-02 move=48.8% lr=1.0e-04 t=44.5m
+    [bpf] 17250/37500 train lat_retr=0.017 align=0.937 (best 0.017, gate 0.95)
+    [bpf] 17300/37500 F=4.4226e-02 move=49.0% lr=1.0e-04 t=44.6m
+    [bpf] 17350/37500 F=4.4017e-02 move=49.0% lr=1.0e-04 t=44.8m
+    [bpf] 17400/37500 F=4.1124e-02 move=49.2% lr=1.0e-04 t=44.9m
+    [bpf] 17450/37500 F=4.1277e-02 move=49.2% lr=1.0e-04 t=45.0m
+    [bpf] 17500/37500 F=4.0597e-02 move=49.3% lr=1.0e-04 t=45.1m
+    [bpf] 17500/37500 train lat_retr=0.017 align=0.940 (best 0.017, gate 0.95)
+    [bpf] 17550/37500 F=3.8993e-02 move=49.5% lr=1.0e-04 t=45.3m
+    [bpf] 17600/37500 F=4.1992e-02 move=49.6% lr=1.0e-04 t=45.4m
+    [bpf] 17650/37500 F=4.0018e-02 move=49.7% lr=1.0e-04 t=45.5m
+    [bpf] 17700/37500 F=3.9153e-02 move=49.8% lr=1.0e-04 t=45.7m
+    [bpf] 17750/37500 F=3.7538e-02 move=49.9% lr=1.0e-04 t=45.8m
+    [bpf] 17750/37500 train lat_retr=0.031 align=0.940 (best 0.031, gate 0.95)
+    [bpf] 17800/37500 F=4.1034e-02 move=50.1% lr=1.0e-04 t=45.9m
+    [bpf] 17850/37500 F=3.7223e-02 move=50.2% lr=1.0e-04 t=46.0m
+    [bpf] 17900/37500 F=4.0879e-02 move=50.3% lr=1.0e-04 t=46.2m
+    [bpf] 17950/37500 F=3.7953e-02 move=50.4% lr=1.0e-04 t=46.3m
+    [bpf] 18000/37500 F=4.0570e-02 move=50.5% lr=1.0e-04 t=46.4m
+    [bpf] 18000/37500 train lat_retr=0.041 align=0.946 (best 0.041, gate 0.95)
+    [bpf] 18050/37500 F=4.0421e-02 move=50.7% lr=1.0e-04 t=46.6m
+    [bpf] 18100/37500 F=3.8125e-02 move=50.8% lr=1.0e-04 t=46.7m
+    [bpf] 18150/37500 F=3.9439e-02 move=50.9% lr=1.0e-04 t=46.8m
+    [bpf] 18200/37500 F=3.7599e-02 move=51.0% lr=1.0e-04 t=46.9m
+    [bpf] 18250/37500 F=3.8024e-02 move=51.1% lr=1.0e-04 t=47.1m
+    [bpf] 18250/37500 train lat_retr=0.063 align=0.945 (best 0.063, gate 0.95)
+    [bpf] 18300/37500 F=3.6603e-02 move=51.2% lr=1.0e-04 t=47.2m
+    [bpf] 18350/37500 F=3.7689e-02 move=51.4% lr=1.0e-04 t=47.3m
+    [bpf] 18400/37500 F=3.6472e-02 move=51.4% lr=1.0e-04 t=47.4m
+    [bpf] 18450/37500 F=3.8845e-02 move=51.6% lr=1.0e-04 t=47.6m
+    [bpf] 18500/37500 F=4.3891e-02 move=51.7% lr=1.0e-04 t=47.7m
+    [bpf] 18500/37500 train lat_retr=0.087 align=0.948 (best 0.087, gate 0.95)
+    [bpf] 18550/37500 F=3.7543e-02 move=51.8% lr=1.0e-04 t=47.8m
+    [bpf] 18600/37500 F=3.9090e-02 move=51.9% lr=1.0e-04 t=48.0m
+    [bpf] 18650/37500 F=4.0548e-02 move=52.0% lr=1.0e-04 t=48.1m
+    [bpf] 18700/37500 F=3.8613e-02 move=52.1% lr=1.0e-04 t=48.2m
+    [bpf] 18750/37500 F=3.7805e-02 move=52.2% lr=1.0e-04 t=48.3m
+    [bpf] 18750/37500 train lat_retr=0.098 align=0.951 (best 0.098, gate 0.95)
+    [bpf] 18800/37500 F=3.4849e-02 move=52.4% lr=1.0e-04 t=48.5m
+    [bpf] 18850/37500 F=4.2207e-02 move=52.5% lr=1.0e-04 t=48.6m
+    [bpf] 18900/37500 F=4.2007e-02 move=52.6% lr=1.0e-04 t=48.7m
+    [bpf] 18950/37500 F=4.1142e-02 move=52.7% lr=1.0e-04 t=48.8m
+    [bpf] 19000/37500 F=4.0834e-02 move=52.8% lr=1.0e-04 t=49.0m
+    [bpf] 19000/37500 train lat_retr=0.141 align=0.956 (best 0.141, gate 0.95)
+    [bpf] 19050/37500 F=4.3094e-02 move=52.9% lr=1.0e-04 t=49.1m
+    [bpf] 19100/37500 F=3.9334e-02 move=53.0% lr=1.0e-04 t=49.2m
+    [bpf] 19150/37500 F=4.1094e-02 move=53.2% lr=1.0e-04 t=49.4m
+    [bpf] 19200/37500 F=3.7461e-02 move=53.2% lr=1.0e-04 t=49.5m
+    [bpf] 19250/37500 F=4.0264e-02 move=53.3% lr=1.0e-04 t=49.6m
+    [bpf] 19250/37500 train lat_retr=0.158 align=0.954 (best 0.158, gate 0.95)
+    [bpf] 19300/37500 F=3.5254e-02 move=53.5% lr=1.0e-04 t=49.7m
+    [bpf] 19350/37500 F=3.8104e-02 move=53.6% lr=1.0e-04 t=49.9m
+    [bpf] 19400/37500 F=4.1814e-02 move=53.7% lr=1.0e-04 t=50.0m
+    [bpf] 19450/37500 F=4.0501e-02 move=53.8% lr=1.0e-04 t=50.1m
+    [bpf] 19500/37500 F=3.9131e-02 move=53.9% lr=1.0e-04 t=50.2m
+    [bpf] 19500/37500 train lat_retr=0.181 align=0.958 (best 0.181, gate 0.95)
+    [bpf] 19550/37500 F=4.0950e-02 move=54.0% lr=1.0e-04 t=50.4m
+    [bpf] 19600/37500 F=3.4629e-02 move=54.1% lr=1.0e-04 t=50.5m
+    [bpf] 19650/37500 F=3.8757e-02 move=54.3% lr=1.0e-04 t=50.6m
+    [bpf] 19700/37500 F=4.1625e-02 move=54.4% lr=1.0e-04 t=50.8m
+    [bpf] 19750/37500 F=4.0018e-02 move=54.5% lr=1.0e-04 t=50.9m
+    [bpf] 19750/37500 train lat_retr=0.241 align=0.958 (best 0.241, gate 0.95)
+    [bpf] 19800/37500 F=4.0344e-02 move=54.6% lr=1.0e-04 t=51.0m
+    [bpf] 19850/37500 F=3.9318e-02 move=54.7% lr=1.0e-04 t=51.1m
+    [bpf] 19900/37500 F=3.6222e-02 move=54.8% lr=1.0e-04 t=51.3m
+    [bpf] 19950/37500 F=3.7938e-02 move=54.9% lr=1.0e-04 t=51.4m
+    [bpf] 20000/37500 F=3.9459e-02 move=55.0% lr=1.0e-04 t=51.5m
+    [bpf] 20000/37500 train lat_retr=0.283 align=0.958 (best 0.283, gate 0.95)
+    [bpf] 20050/37500 F=3.9060e-02 move=55.2% lr=1.0e-04 t=51.7m
+    [bpf] 20100/37500 F=4.0629e-02 move=55.3% lr=1.0e-04 t=51.8m
+    [bpf] 20150/37500 F=3.9933e-02 move=55.4% lr=1.0e-04 t=51.9m
+    [bpf] 20200/37500 F=3.3776e-02 move=55.5% lr=1.0e-04 t=52.0m
+    [bpf] 20250/37500 F=3.8088e-02 move=55.6% lr=1.0e-04 t=52.2m
+    [bpf] 20250/37500 train lat_retr=0.267 align=0.960 (best 0.283, gate 0.95)
+    [bpf] 20300/37500 F=3.6613e-02 move=55.7% lr=1.0e-04 t=52.3m
+    [bpf] 20350/37500 F=4.0582e-02 move=55.8% lr=1.0e-04 t=52.4m
+    [bpf] 20400/37500 F=4.0016e-02 move=55.9% lr=1.0e-04 t=52.5m
+    [bpf] 20450/37500 F=3.5687e-02 move=56.0% lr=1.0e-04 t=52.7m
+    [bpf] 20500/37500 F=4.1311e-02 move=56.1% lr=1.0e-04 t=52.8m
+    [bpf] 20500/37500 train lat_retr=0.302 align=0.959 (best 0.302, gate 0.95)
+    [bpf] 20550/37500 F=3.8075e-02 move=56.3% lr=1.0e-04 t=52.9m
+    [bpf] 20600/37500 F=3.9516e-02 move=56.4% lr=1.0e-04 t=53.1m
+    [bpf] 20650/37500 F=3.5449e-02 move=56.5% lr=1.0e-04 t=53.2m
+    [bpf] 20700/37500 F=3.8573e-02 move=56.6% lr=1.0e-04 t=53.3m
+    [bpf] 20750/37500 F=3.9147e-02 move=56.7% lr=1.0e-04 t=53.4m
+    [bpf] 20750/37500 train lat_retr=0.369 align=0.964 (best 0.369, gate 0.95)
+    [bpf] 20800/37500 F=3.7964e-02 move=56.8% lr=1.0e-04 t=53.6m
+    [bpf] 20850/37500 F=3.7670e-02 move=56.9% lr=1.0e-04 t=53.7m
+    [bpf] 20900/37500 F=3.9428e-02 move=57.0% lr=1.0e-04 t=53.8m
+    [bpf] 20950/37500 F=3.5111e-02 move=57.1% lr=1.0e-04 t=53.9m
+    [bpf] 21000/37500 F=3.8244e-02 move=57.1% lr=1.0e-04 t=54.1m
+    [bpf] 21000/37500 train lat_retr=0.388 align=0.964 (best 0.388, gate 0.95)
+    [bpf] 21050/37500 F=4.0990e-02 move=57.3% lr=1.0e-04 t=54.2m
+    [bpf] 21100/37500 F=3.8903e-02 move=57.4% lr=1.0e-04 t=54.3m
+    [bpf] 21150/37500 F=4.0901e-02 move=57.4% lr=1.0e-04 t=54.5m
+    [bpf] 21200/37500 F=3.4897e-02 move=57.5% lr=1.0e-04 t=54.6m
+    [bpf] 21250/37500 F=3.7147e-02 move=57.6% lr=1.0e-04 t=54.7m
+    [bpf] 21250/37500 train lat_retr=0.399 align=0.965 (best 0.399, gate 0.95)
+    [bpf] 21300/37500 F=3.4939e-02 move=57.7% lr=1.0e-04 t=54.8m
+    [bpf] 21350/37500 F=3.8560e-02 move=57.8% lr=1.0e-04 t=55.0m
+    [bpf] 21400/37500 F=3.5502e-02 move=57.9% lr=1.0e-04 t=55.1m
+    [bpf] 21450/37500 F=4.1502e-02 move=58.0% lr=1.0e-04 t=55.2m
+    [bpf] 21500/37500 F=3.6461e-02 move=58.1% lr=1.0e-04 t=55.3m
+    [bpf] 21500/37500 train lat_retr=0.429 align=0.966 (best 0.429, gate 0.95)
+    [bpf] 21550/37500 F=4.0837e-02 move=58.2% lr=1.0e-04 t=55.5m
+    [bpf] 21600/37500 F=3.6552e-02 move=58.3% lr=1.0e-04 t=55.6m
+    [bpf] 21650/37500 F=3.7822e-02 move=58.4% lr=1.0e-04 t=55.7m
+    [bpf] 21700/37500 F=3.7631e-02 move=58.4% lr=1.0e-04 t=55.9m
+    [bpf] 21750/37500 F=3.5744e-02 move=58.5% lr=1.0e-04 t=56.0m
+    [bpf] 21750/37500 train lat_retr=0.499 align=0.969 (best 0.499, gate 0.95)
+    [bpf] 21800/37500 F=3.7789e-02 move=58.7% lr=1.0e-04 t=56.1m
+    [bpf] 21850/37500 F=3.9317e-02 move=58.7% lr=1.0e-04 t=56.2m
+    [bpf] 21900/37500 F=3.8885e-02 move=58.8% lr=1.0e-04 t=56.4m
+    [bpf] 21950/37500 F=3.8010e-02 move=58.9% lr=1.0e-04 t=56.5m
+    [bpf] 22000/37500 F=3.8563e-02 move=59.0% lr=1.0e-04 t=56.6m
+    [bpf] 22000/37500 train lat_retr=0.530 align=0.969 (best 0.530, gate 0.95)
+    [bpf] 22050/37500 F=3.9787e-02 move=59.1% lr=1.0e-04 t=56.8m
+    [bpf] 22100/37500 F=4.0587e-02 move=59.2% lr=1.0e-04 t=56.9m
+    [bpf] 22150/37500 F=3.8464e-02 move=59.3% lr=1.0e-04 t=57.0m
+    [bpf] 22200/37500 F=3.6574e-02 move=59.4% lr=1.0e-04 t=57.1m
+    [bpf] 22250/37500 F=3.9262e-02 move=59.5% lr=1.0e-04 t=57.3m
+    [bpf] 22250/37500 train lat_retr=0.575 align=0.970 (best 0.575, gate 0.95)
+    [bpf] 22300/37500 F=3.3763e-02 move=59.7% lr=1.0e-04 t=57.4m
+    [bpf] 22350/37500 F=3.6593e-02 move=59.7% lr=1.0e-04 t=57.5m
+    [bpf] 22400/37500 F=3.8407e-02 move=59.8% lr=1.0e-04 t=57.6m
+    [bpf] 22450/37500 F=3.9366e-02 move=59.9% lr=1.0e-04 t=57.8m
+    [bpf] 22500/37500 F=3.8596e-02 move=60.0% lr=1.0e-04 t=57.9m
+    [bpf] 22500/37500 train lat_retr=0.598 align=0.971 (best 0.598, gate 0.95)
+    [bpf] 22550/37500 F=3.7543e-02 move=60.1% lr=1.0e-04 t=58.0m
+    [bpf] 22600/37500 F=3.5578e-02 move=60.2% lr=1.0e-04 t=58.2m
+    [bpf] 22650/37500 F=3.4816e-02 move=60.3% lr=1.0e-04 t=58.3m
+    [bpf] 22700/37500 F=3.7642e-02 move=60.4% lr=1.0e-04 t=58.4m
+    [bpf] 22750/37500 F=3.8941e-02 move=60.5% lr=1.0e-04 t=58.5m
+    [bpf] 22750/37500 train lat_retr=0.638 align=0.973 (best 0.638, gate 0.95)
+    [bpf] 22800/37500 F=3.6914e-02 move=60.6% lr=1.0e-04 t=58.7m
+    [bpf] 22850/37500 F=3.9120e-02 move=60.7% lr=1.0e-04 t=58.8m
+    [bpf] 22900/37500 F=3.7357e-02 move=60.8% lr=1.0e-04 t=58.9m
+    [bpf] 22950/37500 F=3.7838e-02 move=60.9% lr=1.0e-04 t=59.1m
+    [bpf] 23000/37500 F=3.7258e-02 move=60.9% lr=1.0e-04 t=59.2m
+    [bpf] 23000/37500 train lat_retr=0.654 align=0.973 (best 0.654, gate 0.95)
+    [bpf] 23050/37500 F=3.4973e-02 move=61.0% lr=1.0e-04 t=59.3m
+    [bpf] 23100/37500 F=3.7602e-02 move=61.1% lr=1.0e-04 t=59.4m
+    [bpf] 23150/37500 F=3.8524e-02 move=61.2% lr=1.0e-04 t=59.6m
+    [bpf] 23200/37500 F=3.5755e-02 move=61.3% lr=1.0e-04 t=59.7m
+    [bpf] 23250/37500 F=3.8106e-02 move=61.3% lr=1.0e-04 t=59.8m
+    [bpf] 23250/37500 train lat_retr=0.713 align=0.974 (best 0.713, gate 0.95)
+    [bpf] 23300/37500 F=3.9074e-02 move=61.4% lr=1.0e-04 t=60.0m
+    [bpf] 23350/37500 F=3.4581e-02 move=61.5% lr=1.0e-04 t=60.1m
+    [bpf] 23400/37500 F=3.7875e-02 move=61.6% lr=1.0e-04 t=60.2m
+    [bpf] 23450/37500 F=3.8593e-02 move=61.7% lr=1.0e-04 t=60.3m
+    [bpf] 23500/37500 F=3.4146e-02 move=61.7% lr=1.0e-04 t=60.5m
+    [bpf] 23500/37500 train lat_retr=0.741 align=0.974 (best 0.741, gate 0.95)
+    [bpf] 23550/37500 F=3.6587e-02 move=61.8% lr=1.0e-04 t=60.6m
+    [bpf] 23600/37500 F=3.3720e-02 move=61.9% lr=1.0e-04 t=60.7m
+    [bpf] 23650/37500 F=3.7495e-02 move=62.0% lr=1.0e-04 t=60.8m
+    [bpf] 23700/37500 F=3.7057e-02 move=62.1% lr=1.0e-04 t=61.0m
+    [bpf] 23750/37500 F=3.5951e-02 move=62.1% lr=1.0e-04 t=61.1m
+    [bpf] 23750/37500 train lat_retr=0.721 align=0.975 (best 0.741, gate 0.95)
+    [bpf] 23800/37500 F=3.5994e-02 move=62.2% lr=1.0e-04 t=61.2m
+    [bpf] 23850/37500 F=3.9907e-02 move=62.3% lr=1.0e-04 t=61.4m
+    [bpf] 23900/37500 F=3.7000e-02 move=62.3% lr=1.0e-04 t=61.5m
+    [bpf] 23950/37500 F=3.8420e-02 move=62.4% lr=1.0e-04 t=61.6m
+    [bpf] 24000/37500 F=3.4965e-02 move=62.5% lr=1.0e-04 t=61.7m
+    [bpf] 24000/37500 train lat_retr=0.762 align=0.976 (best 0.762, gate 0.95)
+    [bpf] 24050/37500 F=3.3689e-02 move=62.6% lr=1.0e-04 t=61.9m
+    [bpf] 24100/37500 F=3.7354e-02 move=62.6% lr=1.0e-04 t=62.0m
+    [bpf] 24150/37500 F=3.5799e-02 move=62.7% lr=1.0e-04 t=62.1m
+    [bpf] 24200/37500 F=3.6928e-02 move=62.8% lr=1.0e-04 t=62.2m
+    [bpf] 24250/37500 F=3.7930e-02 move=62.9% lr=1.0e-04 t=62.4m
+    [bpf] 24250/37500 train lat_retr=0.774 align=0.977 (best 0.774, gate 0.95)
+    [bpf] 24300/37500 F=3.7489e-02 move=62.9% lr=1.0e-04 t=62.5m
+    [bpf] 24350/37500 F=3.4783e-02 move=63.0% lr=1.0e-04 t=62.6m
+    [bpf] 24400/37500 F=3.9487e-02 move=63.1% lr=1.0e-04 t=62.8m
+    [bpf] 24450/37500 F=3.8925e-02 move=63.1% lr=1.0e-04 t=62.9m
+    [bpf] 24500/37500 F=3.5863e-02 move=63.2% lr=1.0e-04 t=63.0m
+    [bpf] 24500/37500 train lat_retr=0.779 align=0.977 (best 0.779, gate 0.95)
+    [bpf] 24550/37500 F=3.7330e-02 move=63.3% lr=1.0e-04 t=63.1m
+    [bpf] 24600/37500 F=3.6381e-02 move=63.3% lr=1.0e-04 t=63.3m
+    [bpf] 24650/37500 F=3.7209e-02 move=63.4% lr=1.0e-04 t=63.4m
+    [bpf] 24700/37500 F=4.2766e-02 move=63.5% lr=1.0e-04 t=63.5m
+    [bpf] 24750/37500 F=3.6209e-02 move=63.5% lr=1.0e-04 t=63.6m
+    [bpf] 24750/37500 train lat_retr=0.800 align=0.977 (best 0.800, gate 0.95)
+    [bpf] 24800/37500 F=3.9191e-02 move=63.6% lr=1.0e-04 t=63.8m
+    [bpf] 24850/37500 F=3.7759e-02 move=63.7% lr=1.0e-04 t=63.9m
+    [bpf] 24900/37500 F=3.7575e-02 move=63.8% lr=1.0e-04 t=64.0m
+    [bpf] 24950/37500 F=3.7732e-02 move=63.8% lr=1.0e-04 t=64.2m
+    [bpf] 25000/37500 F=3.5732e-02 move=63.9% lr=1.0e-04 t=64.3m
+    [bpf] 25000/37500 train lat_retr=0.775 align=0.977 (best 0.800, gate 0.95)
+    [bpf] 25050/37500 F=3.4003e-02 move=64.0% lr=1.0e-04 t=64.4m
+    [bpf] 25100/37500 F=3.8857e-02 move=64.0% lr=1.0e-04 t=64.5m
+    [bpf] 25150/37500 F=3.5671e-02 move=64.1% lr=1.0e-04 t=64.7m
+    [bpf] 25200/37500 F=3.7995e-02 move=64.2% lr=1.0e-04 t=64.8m
+    [bpf] 25250/37500 F=3.2783e-02 move=64.3% lr=1.0e-04 t=64.9m
+    [bpf] 25250/37500 train lat_retr=0.841 align=0.979 (best 0.841, gate 0.95)
+    [bpf] 25300/37500 F=3.3581e-02 move=64.4% lr=1.0e-04 t=65.1m
+    [bpf] 25350/37500 F=3.5918e-02 move=64.4% lr=1.0e-04 t=65.2m
+    [bpf] 25400/37500 F=3.5925e-02 move=64.5% lr=1.0e-04 t=65.3m
+    [bpf] 25450/37500 F=3.8959e-02 move=64.6% lr=1.0e-04 t=65.4m
+    [bpf] 25500/37500 F=3.5673e-02 move=64.6% lr=1.0e-04 t=65.6m
+    [bpf] 25500/37500 train lat_retr=0.822 align=0.978 (best 0.841, gate 0.95)
+    [bpf] 25550/37500 F=3.5118e-02 move=64.7% lr=1.0e-04 t=65.7m
+    [bpf] 25600/37500 F=3.5066e-02 move=64.8% lr=1.0e-04 t=65.8m
+    [bpf] 25650/37500 F=3.7587e-02 move=64.9% lr=1.0e-04 t=65.9m
+    [bpf] 25700/37500 F=3.4596e-02 move=64.9% lr=1.0e-04 t=66.1m
+    [bpf] 25750/37500 F=3.3912e-02 move=65.0% lr=1.0e-04 t=66.2m
+    [bpf] 25750/37500 train lat_retr=0.851 align=0.979 (best 0.851, gate 0.95)
+    [bpf] 25800/37500 F=4.0317e-02 move=65.1% lr=1.0e-04 t=66.3m
+    [bpf] 25850/37500 F=3.7364e-02 move=65.2% lr=1.0e-04 t=66.5m
+    [bpf] 25900/37500 F=3.7416e-02 move=65.2% lr=1.0e-04 t=66.6m
+    [bpf] 25950/37500 F=3.7243e-02 move=65.3% lr=1.0e-04 t=66.7m
+    [bpf] 26000/37500 F=3.7762e-02 move=65.4% lr=1.0e-04 t=66.8m
+    [bpf] 26000/37500 train lat_retr=0.869 align=0.980 (best 0.869, gate 0.95)
+    [bpf] 26050/37500 F=3.6894e-02 move=65.5% lr=1.0e-04 t=67.0m
+    [bpf] 26100/37500 F=3.6239e-02 move=65.6% lr=1.0e-04 t=67.1m
+    [bpf] 26150/37500 F=3.4521e-02 move=65.6% lr=1.0e-04 t=67.2m
+    [bpf] 26200/37500 F=3.7346e-02 move=65.7% lr=1.0e-04 t=67.3m
+    [bpf] 26250/37500 F=3.6800e-02 move=65.8% lr=1.0e-04 t=67.5m
+    [bpf] 26250/37500 train lat_retr=0.879 align=0.980 (best 0.879, gate 0.95)
+    [bpf] 26300/37500 F=3.8451e-02 move=65.9% lr=1.0e-04 t=67.6m
+    [bpf] 26350/37500 F=3.6055e-02 move=65.9% lr=1.0e-04 t=67.7m
+    [bpf] 26400/37500 F=3.6943e-02 move=66.0% lr=1.0e-04 t=67.9m
+    [bpf] 26450/37500 F=3.6087e-02 move=66.1% lr=1.0e-04 t=68.0m
+    [bpf] 26500/37500 F=3.6478e-02 move=66.2% lr=1.0e-04 t=68.1m
+    [bpf] 26500/37500 train lat_retr=0.905 align=0.981 (best 0.905, gate 0.95)
+    [bpf] 26550/37500 F=4.0505e-02 move=66.2% lr=1.0e-04 t=68.2m
+    [bpf] 26600/37500 F=3.3542e-02 move=66.3% lr=1.0e-04 t=68.4m
+    [bpf] 26650/37500 F=3.6420e-02 move=66.4% lr=1.0e-04 t=68.5m
+    [bpf] 26700/37500 F=3.7201e-02 move=66.5% lr=1.0e-04 t=68.6m
+    [bpf] 26750/37500 F=3.6196e-02 move=66.5% lr=1.0e-04 t=68.7m
+    [bpf] 26750/37500 train lat_retr=0.894 align=0.982 (best 0.905, gate 0.95)
+    [bpf] 26800/37500 F=3.7657e-02 move=66.6% lr=1.0e-04 t=68.9m
+    [bpf] 26850/37500 F=3.3035e-02 move=66.7% lr=1.0e-04 t=69.0m
+    [bpf] 26900/37500 F=3.7868e-02 move=66.7% lr=1.0e-04 t=69.1m
+    [bpf] 26950/37500 F=3.4075e-02 move=66.8% lr=1.0e-04 t=69.3m
+    [bpf] 27000/37500 F=3.5517e-02 move=66.9% lr=1.0e-04 t=69.4m
+    [bpf] 27000/37500 train lat_retr=0.907 align=0.982 (best 0.907, gate 0.95)
+    [bpf] 27050/37500 F=3.4520e-02 move=66.9% lr=1.0e-04 t=69.5m
+    [bpf] 27100/37500 F=3.6294e-02 move=67.0% lr=1.0e-04 t=69.7m
+    [bpf] 27150/37500 F=3.9052e-02 move=67.1% lr=1.0e-04 t=69.8m
+    [bpf] 27200/37500 F=3.6373e-02 move=67.1% lr=1.0e-04 t=69.9m
+    [bpf] 27250/37500 F=3.5619e-02 move=67.2% lr=1.0e-04 t=70.0m
+    [bpf] 27250/37500 train lat_retr=0.919 align=0.982 (best 0.919, gate 0.95)
+    [bpf] 27300/37500 F=3.6822e-02 move=67.3% lr=1.0e-04 t=70.2m
+    [bpf] 27350/37500 F=3.6031e-02 move=67.3% lr=1.0e-04 t=70.3m
+    [bpf] 27400/37500 F=3.6139e-02 move=67.4% lr=1.0e-04 t=70.4m
+    [bpf] 27450/37500 F=3.5495e-02 move=67.4% lr=1.0e-04 t=70.5m
+    [bpf] 27500/37500 F=3.7731e-02 move=67.5% lr=1.0e-04 t=70.7m
+    [bpf] 27500/37500 train lat_retr=0.925 align=0.983 (best 0.925, gate 0.95)
+    [bpf] 27550/37500 F=3.7424e-02 move=67.6% lr=1.0e-04 t=70.8m
+    [bpf] 27600/37500 F=3.2900e-02 move=67.7% lr=1.0e-04 t=70.9m
+    [bpf] 27650/37500 F=3.4168e-02 move=67.7% lr=1.0e-04 t=71.1m
+    [bpf] 27700/37500 F=3.3140e-02 move=67.8% lr=1.0e-04 t=71.2m
+    [bpf] 27750/37500 F=3.4489e-02 move=67.8% lr=1.0e-04 t=71.3m
+    [bpf] 27750/37500 train lat_retr=0.930 align=0.983 (best 0.930, gate 0.95)
+    [bpf] 27800/37500 F=3.4158e-02 move=67.9% lr=1.0e-04 t=71.4m
+    [bpf] 27850/37500 F=3.6525e-02 move=68.0% lr=1.0e-04 t=71.6m
+    [bpf] 27900/37500 F=3.7715e-02 move=68.0% lr=1.0e-04 t=71.7m
+    [bpf] 27950/37500 F=3.8895e-02 move=68.1% lr=1.0e-04 t=71.8m
+    [bpf] 28000/37500 F=3.3374e-02 move=68.2% lr=1.0e-04 t=71.9m
+    [bpf] 28000/37500 train lat_retr=0.939 align=0.984 (best 0.939, gate 0.95)
+    [bpf] 28050/37500 F=3.6420e-02 move=68.2% lr=1.0e-04 t=72.1m
+    [bpf] 28100/37500 F=3.8628e-02 move=68.3% lr=1.0e-04 t=72.2m
+    [bpf] 28150/37500 F=3.2257e-02 move=68.4% lr=1.0e-04 t=72.3m
+    [bpf] 28200/37500 F=3.4814e-02 move=68.4% lr=1.0e-04 t=72.5m
+    [bpf] 28250/37500 F=3.3152e-02 move=68.5% lr=1.0e-04 t=72.6m
+    [bpf] 28250/37500 train lat_retr=0.928 align=0.982 (best 0.939, gate 0.95)
+    [bpf] 28300/37500 F=3.6036e-02 move=68.6% lr=1.0e-04 t=72.7m
+    [bpf] 28350/37500 F=3.6827e-02 move=68.6% lr=1.0e-04 t=72.8m
+    [bpf] 28400/37500 F=3.3494e-02 move=68.7% lr=1.0e-04 t=73.0m
+    [bpf] 28450/37500 F=3.6580e-02 move=68.8% lr=1.0e-04 t=73.1m
+    [bpf] 28500/37500 F=3.4531e-02 move=68.8% lr=1.0e-04 t=73.2m
+    [bpf] 28500/37500 train lat_retr=0.965 align=0.985 (best 0.965, gate 0.95)
+    [bpf] 28550/37500 F=3.2458e-02 move=68.9% lr=1.0e-04 t=73.4m
+    [bpf] 28600/37500 F=3.5584e-02 move=69.0% lr=1.0e-04 t=73.5m
+    [bpf] 28650/37500 F=3.3144e-02 move=69.0% lr=1.0e-04 t=73.6m
+    [bpf] 28700/37500 F=3.5492e-02 move=69.1% lr=1.0e-04 t=73.7m
+    [bpf] 28750/37500 F=3.3147e-02 move=69.2% lr=1.0e-04 t=73.9m
+    [bpf] 28750/37500 train lat_retr=0.950 align=0.984 (best 0.965, gate 0.95)
+    [bpf] 28800/37500 F=3.7203e-02 move=69.3% lr=1.0e-04 t=74.0m
+    [bpf] 28850/37500 F=3.5442e-02 move=69.3% lr=1.0e-04 t=74.1m
+    [bpf] 28900/37500 F=3.6466e-02 move=69.4% lr=1.0e-04 t=74.2m
+    [bpf] 28950/37500 F=3.4575e-02 move=69.4% lr=1.0e-04 t=74.4m
+    [bpf] 29000/37500 F=3.6341e-02 move=69.5% lr=1.0e-04 t=74.5m
+    [bpf] 29000/37500 train lat_retr=0.957 align=0.985 (best 0.965, gate 0.95)
+    [bpf] 29050/37500 F=3.7940e-02 move=69.6% lr=1.0e-04 t=74.6m
+    [bpf] 29100/37500 F=3.7964e-02 move=69.6% lr=1.0e-04 t=74.8m
+    [bpf] 29150/37500 F=3.5552e-02 move=69.7% lr=1.0e-04 t=74.9m
+    [bpf] 29200/37500 F=3.4906e-02 move=69.8% lr=1.0e-04 t=75.0m
+    [bpf] 29250/37500 F=3.8274e-02 move=69.8% lr=1.0e-04 t=75.1m
+    [bpf] 29250/37500 train lat_retr=0.958 align=0.984 (best 0.965, gate 0.95)
+    [bpf] 29300/37500 F=3.4227e-02 move=69.9% lr=1.0e-04 t=75.3m
+    [bpf] 29350/37500 F=3.5462e-02 move=70.0% lr=1.0e-04 t=75.4m
+    [bpf] 29400/37500 F=3.7945e-02 move=70.0% lr=1.0e-04 t=75.5m
+    [bpf] 29450/37500 F=3.1952e-02 move=70.1% lr=1.0e-04 t=75.6m
+    [bpf] 29500/37500 F=3.3521e-02 move=70.1% lr=1.0e-04 t=75.8m
+    [bpf] 29500/37500 train lat_retr=0.943 align=0.985 (best 0.965, gate 0.95)
+    [bpf] 29550/37500 F=3.5646e-02 move=70.2% lr=1.0e-04 t=75.9m
+    [bpf] 29600/37500 F=3.6842e-02 move=70.3% lr=1.0e-04 t=76.0m
+    [bpf] 29650/37500 F=3.4743e-02 move=70.4% lr=1.0e-04 t=76.2m
+    [bpf] 29700/37500 F=3.6325e-02 move=70.4% lr=1.0e-04 t=76.3m
+    [bpf] 29750/37500 F=3.8484e-02 move=70.5% lr=1.0e-04 t=76.4m
+    [bpf] 29750/37500 train lat_retr=0.961 align=0.984 (best 0.965, gate 0.95)
+    [bpf] 29800/37500 F=3.8501e-02 move=70.5% lr=1.0e-04 t=76.6m
+    [bpf] 29850/37500 F=3.3005e-02 move=70.6% lr=1.0e-04 t=76.7m
+    [bpf] 29900/37500 F=3.4937e-02 move=70.7% lr=1.0e-04 t=76.8m
+    [bpf] 29950/37500 F=3.1858e-02 move=70.7% lr=1.0e-04 t=76.9m
+    [bpf] 30000/37500 F=3.7161e-02 move=70.8% lr=1.0e-04 t=77.1m
+    [bpf] 30000/37500 train lat_retr=0.963 align=0.984 (best 0.965, gate 0.95)
+    [bpf] 30050/37500 F=3.5378e-02 move=70.9% lr=1.0e-04 t=77.2m
+    [bpf] 30100/37500 F=3.4722e-02 move=70.9% lr=1.0e-04 t=77.3m
+    [bpf] 30150/37500 F=3.4299e-02 move=71.0% lr=1.0e-04 t=77.4m
+    [bpf] 30200/37500 F=3.5792e-02 move=71.1% lr=1.0e-04 t=77.6m
+    [bpf] 30250/37500 F=3.1856e-02 move=71.1% lr=1.0e-04 t=77.7m
+    [bpf] 30250/37500 train lat_retr=0.974 align=0.985 (best 0.974, gate 0.95)
+    [bpf] 30300/37500 F=3.5606e-02 move=71.2% lr=1.0e-04 t=77.8m
+    [bpf] 30350/37500 F=3.7374e-02 move=71.3% lr=1.0e-04 t=78.0m
+    [bpf] 30400/37500 F=3.4935e-02 move=71.4% lr=1.0e-04 t=78.1m
+    [bpf] 30450/37500 F=3.7400e-02 move=71.4% lr=1.0e-04 t=78.2m
+    [bpf] 30500/37500 F=3.4888e-02 move=71.5% lr=1.0e-04 t=78.3m
+    [bpf] 30500/37500 train lat_retr=0.978 align=0.986 (best 0.978, gate 0.95)
+    [bpf] 30550/37500 F=3.4342e-02 move=71.6% lr=1.0e-04 t=78.5m
+    [bpf] 30600/37500 F=4.1153e-02 move=71.7% lr=1.0e-04 t=78.6m
+    [bpf] 30650/37500 F=3.3224e-02 move=71.7% lr=1.0e-04 t=78.7m
+    [bpf] 30700/37500 F=3.3799e-02 move=71.8% lr=1.0e-04 t=78.8m
+    [bpf] 30750/37500 F=3.5856e-02 move=71.9% lr=1.0e-04 t=79.0m
+    [bpf] 30750/37500 train lat_retr=0.987 align=0.986 (best 0.987, gate 0.95)
+    [bpf] 30800/37500 F=3.5959e-02 move=71.9% lr=1.0e-04 t=79.1m
+    [bpf] 30850/37500 F=3.3792e-02 move=72.0% lr=1.0e-04 t=79.2m
+    [bpf] 30900/37500 F=3.2101e-02 move=72.1% lr=1.0e-04 t=79.4m
+    [bpf] 30950/37500 F=3.6029e-02 move=72.1% lr=1.0e-04 t=79.5m
+    [bpf] 31000/37500 F=3.6541e-02 move=72.2% lr=1.0e-04 t=79.6m
+    [bpf] 31000/37500 train lat_retr=0.984 align=0.986 (best 0.987, gate 0.95)
+    [bpf] 31050/37500 F=3.5488e-02 move=72.3% lr=1.0e-04 t=79.8m
+    [bpf] 31100/37500 F=3.4192e-02 move=72.4% lr=1.0e-04 t=79.9m
+    [bpf] 31150/37500 F=3.2578e-02 move=72.4% lr=1.0e-04 t=80.0m
+    [bpf] 31200/37500 F=3.6801e-02 move=72.5% lr=1.0e-04 t=80.1m
+    [bpf] 31250/37500 F=3.3631e-02 move=72.6% lr=1.0e-04 t=80.3m
+    [bpf] 31250/37500 train lat_retr=0.991 align=0.986 (best 0.991, gate 0.95)
+    [bpf] 31300/37500 F=3.5802e-02 move=72.6% lr=1.0e-04 t=80.4m
+    [bpf] 31350/37500 F=5.3799e-02 move=73.7% lr=1.0e-04 t=80.5m
+    [bpf] 31400/37500 F=3.6605e-02 move=74.1% lr=1.0e-04 t=80.6m
+    [bpf] 31450/37500 F=3.9411e-02 move=74.1% lr=1.0e-04 t=80.8m
+    [bpf] 31500/37500 F=3.7075e-02 move=74.1% lr=1.0e-04 t=80.9m
+    [bpf] 31500/37500 train lat_retr=0.031 align=0.970 (best 0.991, gate 0.95)
+    [bpf] 31550/37500 F=4.0181e-02 move=74.1% lr=1.0e-04 t=81.0m
+    [bpf] 31600/37500 F=3.6738e-02 move=74.1% lr=1.0e-04 t=81.2m
+    [bpf] 31650/37500 F=3.8863e-02 move=74.2% lr=1.0e-04 t=81.3m
+    [bpf] 31700/37500 F=3.7009e-02 move=74.2% lr=1.0e-04 t=81.4m
+    [bpf] 31750/37500 F=3.9464e-02 move=74.2% lr=1.0e-04 t=81.5m
+    [bpf] 31750/37500 train lat_retr=0.152 align=0.974 (best 0.991, gate 0.95)
+    [bpf] 31800/37500 F=3.7204e-02 move=74.3% lr=1.0e-04 t=81.7m
+    [bpf] 31850/37500 F=3.5033e-02 move=74.3% lr=1.0e-04 t=81.8m
+    [bpf] 31900/37500 F=3.5969e-02 move=74.3% lr=1.0e-04 t=81.9m
+    [bpf] 31950/37500 F=3.5015e-02 move=74.4% lr=1.0e-04 t=82.0m
+    [bpf] 32000/37500 F=3.5852e-02 move=74.4% lr=1.0e-04 t=82.2m
+    [bpf] 32000/37500 train lat_retr=0.361 align=0.976 (best 0.991, gate 0.95)
+    [bpf] 32050/37500 F=3.8726e-02 move=74.4% lr=1.0e-04 t=82.3m
+    [bpf] 32100/37500 F=3.6390e-02 move=74.5% lr=1.0e-04 t=82.4m
+    [bpf] 32150/37500 F=3.4684e-02 move=74.5% lr=1.0e-04 t=82.6m
+    [bpf] 32200/37500 F=3.4370e-02 move=74.5% lr=1.0e-04 t=82.7m
+    [bpf] 32250/37500 F=3.7279e-02 move=74.6% lr=1.0e-04 t=82.8m
+    [bpf] 32250/37500 train lat_retr=0.585 align=0.979 (best 0.991, gate 0.95)
+    [bpf] 32300/37500 F=3.3622e-02 move=74.6% lr=1.0e-04 t=83.0m
+    [bpf] 32350/37500 F=3.7280e-02 move=74.6% lr=1.0e-04 t=83.1m
+    [bpf] 32400/37500 F=3.6139e-02 move=74.7% lr=1.0e-04 t=83.2m
+    [bpf] 32450/37500 F=3.5576e-02 move=74.7% lr=1.0e-04 t=83.3m
+    [bpf] 32500/37500 F=3.6037e-02 move=74.7% lr=1.0e-04 t=83.5m
+    [bpf] 32500/37500 train lat_retr=0.746 align=0.981 (best 0.991, gate 0.95)
+    [bpf] 32550/37500 F=3.4140e-02 move=74.7% lr=1.0e-04 t=83.6m
+    [bpf] 32600/37500 F=3.7210e-02 move=74.8% lr=1.0e-04 t=83.7m
+    [bpf] 32650/37500 F=3.4019e-02 move=74.8% lr=1.0e-04 t=83.8m
+    [bpf] 32700/37500 F=3.5837e-02 move=74.8% lr=1.0e-04 t=84.0m
+    [bpf] 32750/37500 F=3.5262e-02 move=74.9% lr=1.0e-04 t=84.1m
+    [bpf] 32750/37500 train lat_retr=0.841 align=0.983 (best 0.991, gate 0.95)
+    [bpf] 32800/37500 F=3.4946e-02 move=74.9% lr=1.0e-04 t=84.2m
+    [bpf] 32850/37500 F=3.6375e-02 move=75.0% lr=1.0e-04 t=84.4m
+    [bpf] 32900/37500 F=3.7237e-02 move=75.0% lr=1.0e-04 t=84.5m
+    [bpf] 32950/37500 F=3.8099e-02 move=75.0% lr=1.0e-04 t=84.6m
+    [bpf] 33000/37500 F=3.6557e-02 move=75.1% lr=1.0e-04 t=84.7m
+    [bpf] 33000/37500 train lat_retr=0.873 align=0.985 (best 0.991, gate 0.95)
+    [bpf] 33050/37500 F=3.6371e-02 move=75.1% lr=1.0e-04 t=84.9m
+    [bpf] 33100/37500 F=3.4567e-02 move=75.1% lr=1.0e-04 t=85.0m
+    [bpf] 33150/37500 F=3.4477e-02 move=75.1% lr=1.0e-04 t=85.1m
+    [bpf] 33200/37500 F=3.5022e-02 move=75.2% lr=1.0e-04 t=85.3m
+    [bpf] 33250/37500 F=3.4512e-02 move=75.2% lr=1.0e-04 t=85.4m
+    [bpf] 33250/37500 train lat_retr=0.927 align=0.985 (best 0.991, gate 0.95)
+    [bpf] 33300/37500 F=3.4722e-02 move=75.2% lr=1.0e-04 t=85.5m
+    [bpf] 33350/37500 F=3.7967e-02 move=75.3% lr=1.0e-04 t=85.6m
+    [bpf] 33400/37500 F=3.4147e-02 move=75.3% lr=1.0e-04 t=85.8m
+    [bpf] 33450/37500 F=3.6827e-02 move=75.3% lr=1.0e-04 t=85.9m
+    [bpf] 33500/37500 F=3.3265e-02 move=75.4% lr=1.0e-04 t=86.0m
+    [bpf] 33500/37500 train lat_retr=0.943 align=0.986 (best 0.991, gate 0.95)
+    [bpf] 33550/37500 F=3.2900e-02 move=75.4% lr=1.0e-04 t=86.2m
+    [bpf] 33600/37500 F=3.5265e-02 move=75.4% lr=1.0e-04 t=86.3m
+    [bpf] 33650/37500 F=3.2749e-02 move=75.5% lr=1.0e-04 t=86.4m
+    [bpf] 33700/37500 F=3.6299e-02 move=75.5% lr=1.0e-04 t=86.5m
+    [bpf] 33750/37500 F=3.2975e-02 move=75.5% lr=1.0e-04 t=86.7m
+    [bpf] 33750/37500 train lat_retr=0.965 align=0.986 (best 0.991, gate 0.95)
+    [bpf] 33800/37500 F=3.8642e-02 move=75.6% lr=1.0e-04 t=86.8m
+    [bpf] 33850/37500 F=3.7663e-02 move=75.6% lr=1.0e-04 t=86.9m
+    [bpf] 33900/37500 F=3.3436e-02 move=75.6% lr=1.0e-04 t=87.1m
+    [bpf] 33950/37500 F=3.6483e-02 move=75.7% lr=1.0e-04 t=87.2m
+    [bpf] 34000/37500 F=3.6786e-02 move=75.7% lr=1.0e-04 t=87.3m
+    [bpf] 34000/37500 train lat_retr=0.975 align=0.986 (best 0.991, gate 0.95)
+    [bpf] 34050/37500 F=3.8998e-02 move=75.7% lr=1.0e-04 t=87.4m
+    [bpf] 34100/37500 F=3.5052e-02 move=75.8% lr=1.0e-04 t=87.6m
+    [bpf] 34150/37500 F=3.5607e-02 move=75.8% lr=1.0e-04 t=87.7m
+    [bpf] 34200/37500 F=3.3582e-02 move=75.8% lr=1.0e-04 t=87.8m
+    [bpf] 34250/37500 F=3.1163e-02 move=75.9% lr=1.0e-04 t=87.9m
+    [bpf] 34250/37500 train lat_retr=0.971 align=0.987 (best 0.991, gate 0.95)
+    [bpf] 34300/37500 F=3.5190e-02 move=75.9% lr=1.0e-04 t=88.1m
+    [bpf] 34350/37500 F=3.5987e-02 move=75.9% lr=1.0e-04 t=88.2m
+    [bpf] 34400/37500 F=3.4043e-02 move=76.0% lr=1.0e-04 t=88.3m
+    [bpf] 34450/37500 F=3.2955e-02 move=76.0% lr=1.0e-04 t=88.5m
+    [bpf] 34500/37500 F=3.3421e-02 move=76.0% lr=1.0e-04 t=88.6m
+    [bpf] 34500/37500 train lat_retr=0.984 align=0.987 (best 0.991, gate 0.95)
+    [bpf] 34550/37500 F=3.5060e-02 move=76.1% lr=1.0e-04 t=88.7m
+    [bpf] 34600/37500 F=3.7290e-02 move=76.1% lr=1.0e-04 t=88.8m
+    [bpf] 34650/37500 F=3.6244e-02 move=76.1% lr=1.0e-04 t=89.0m
+    [bpf] 34700/37500 F=3.2089e-02 move=76.1% lr=1.0e-04 t=89.1m
+    [bpf] 34750/37500 F=3.3015e-02 move=76.2% lr=1.0e-04 t=89.2m
+    [bpf] 34750/37500 train lat_retr=0.986 align=0.988 (best 0.991, gate 0.95)
+    [bpf] 34800/37500 F=3.6314e-02 move=76.2% lr=1.0e-04 t=89.4m
+    [bpf] 34850/37500 F=3.5498e-02 move=76.2% lr=1.0e-04 t=89.5m
+    [bpf] 34900/37500 F=3.5514e-02 move=76.3% lr=1.0e-04 t=89.6m
+    [bpf] 34950/37500 F=3.3470e-02 move=76.3% lr=1.0e-04 t=89.7m
+    [bpf] 35000/37500 F=3.6189e-02 move=76.3% lr=1.0e-04 t=89.9m
+    [bpf] 35000/37500 train lat_retr=0.983 align=0.987 (best 0.991, gate 0.95)
+    [bpf] 35050/37500 F=3.4944e-02 move=76.4% lr=1.0e-04 t=90.0m
+    [bpf] 35100/37500 F=3.5765e-02 move=76.4% lr=1.0e-04 t=90.1m
+    [bpf] 35150/37500 F=3.6256e-02 move=76.4% lr=1.0e-04 t=90.2m
+    [bpf] 35200/37500 F=3.2462e-02 move=76.5% lr=1.0e-04 t=90.4m
+    [bpf] 35250/37500 F=3.8176e-02 move=76.5% lr=1.0e-04 t=90.5m
+    [bpf] 35250/37500 train lat_retr=0.989 align=0.988 (best 0.991, gate 0.95)
+    [bpf] 35300/37500 F=3.5794e-02 move=76.5% lr=1.0e-04 t=90.6m
+    [bpf] 35350/37500 F=3.3048e-02 move=76.6% lr=1.0e-04 t=90.8m
+    [bpf] 35400/37500 F=3.1143e-02 move=76.6% lr=1.0e-04 t=90.9m
+    [bpf] 35450/37500 F=3.5746e-02 move=76.6% lr=1.0e-04 t=91.0m
+    [bpf] 35500/37500 F=3.3989e-02 move=76.7% lr=1.0e-04 t=91.1m
+    [bpf] 35500/37500 train lat_retr=0.987 align=0.988 (best 0.991, gate 0.95)
+    [bpf] 35550/37500 F=3.2595e-02 move=76.7% lr=1.0e-04 t=91.3m
+    [bpf] 35600/37500 F=3.4740e-02 move=76.7% lr=1.0e-04 t=91.4m
+    [bpf] 35650/37500 F=3.1123e-02 move=76.8% lr=1.0e-04 t=91.5m
+    [bpf] 35700/37500 F=3.2140e-02 move=76.8% lr=1.0e-04 t=91.6m
+    [bpf] 35750/37500 F=3.3678e-02 move=76.8% lr=1.0e-04 t=91.8m
+    [bpf] 35750/37500 train lat_retr=0.991 align=0.988 (best 0.991, gate 0.95)
+    [bpf] 35800/37500 F=3.2271e-02 move=76.9% lr=1.0e-04 t=91.9m
+    [bpf] 35850/37500 F=3.2193e-02 move=76.9% lr=1.0e-04 t=92.0m
+    [bpf] 35900/37500 F=3.4903e-02 move=76.9% lr=1.0e-04 t=92.2m
+    [bpf] 35950/37500 F=3.1289e-02 move=77.0% lr=1.0e-04 t=92.3m
+    [bpf] 36000/37500 F=3.3397e-02 move=77.0% lr=1.0e-04 t=92.4m
+    [bpf] 36000/37500 train lat_retr=0.993 align=0.989 (best 0.993, gate 0.95)
+    [bpf] 36050/37500 F=3.3836e-02 move=77.0% lr=1.0e-04 t=92.5m
+    [bpf] 36100/37500 F=3.4217e-02 move=77.1% lr=1.0e-04 t=92.7m
+    [bpf] 36150/37500 F=3.5110e-02 move=77.1% lr=1.0e-04 t=92.8m
+    [bpf] 36200/37500 F=3.3837e-02 move=77.2% lr=1.0e-04 t=92.9m
+    [bpf] 36250/37500 F=3.4744e-02 move=77.2% lr=1.0e-04 t=93.0m
+    [bpf] 36250/37500 train lat_retr=0.987 align=0.989 (best 0.993, gate 0.95)
+    [bpf] 36300/37500 F=3.0276e-02 move=77.2% lr=1.0e-04 t=93.2m
+    [bpf] 36350/37500 F=3.4049e-02 move=77.3% lr=1.0e-04 t=93.3m
+    [bpf] 36400/37500 F=3.9255e-02 move=77.3% lr=1.0e-04 t=93.4m
+    [bpf] 36450/37500 F=3.3307e-02 move=77.3% lr=1.0e-04 t=93.6m
+    [bpf] 36500/37500 F=3.4604e-02 move=77.4% lr=1.0e-04 t=93.7m
+    [bpf] 36500/37500 train lat_retr=0.977 align=0.986 (best 0.993, gate 0.95)
+    [bpf] 36550/37500 F=3.1898e-02 move=77.4% lr=1.0e-04 t=93.8m
+    [bpf] 36600/37500 F=3.4070e-02 move=77.4% lr=1.0e-04 t=93.9m
+    [bpf] 36650/37500 F=3.4350e-02 move=77.5% lr=1.0e-04 t=94.1m
+    [bpf] 36700/37500 F=3.2572e-02 move=77.5% lr=1.0e-04 t=94.2m
+    [bpf] 36750/37500 F=3.1858e-02 move=77.6% lr=1.0e-04 t=94.3m
+    [bpf] 36750/37500 train lat_retr=0.991 align=0.989 (best 0.993, gate 0.95)
+    [bpf] 36800/37500 F=3.3154e-02 move=77.6% lr=1.0e-04 t=94.5m
+    [bpf] 36850/37500 F=3.1864e-02 move=77.6% lr=1.0e-04 t=94.6m
+    [bpf] 36900/37500 F=3.6964e-02 move=77.7% lr=1.0e-04 t=94.7m
+    [bpf] 36950/37500 F=3.1476e-02 move=77.7% lr=1.0e-04 t=94.8m
+    [bpf] 37000/37500 F=3.3990e-02 move=77.8% lr=1.0e-04 t=95.0m
+    [bpf] 37000/37500 train lat_retr=0.991 align=0.989 (best 0.993, gate 0.95)
+    [bpf] 37050/37500 F=3.5145e-02 move=77.8% lr=1.0e-04 t=95.1m
+    [bpf] 37100/37500 F=3.0952e-02 move=77.8% lr=1.0e-04 t=95.2m
+    [bpf] 37150/37500 F=3.4021e-02 move=77.9% lr=1.0e-04 t=95.3m
+    [bpf] 37200/37500 F=3.7318e-02 move=78.2% lr=1.0e-04 t=95.5m
+    [bpf] 37250/37500 F=3.3024e-02 move=78.3% lr=1.0e-04 t=95.6m
+    [bpf] 37250/37500 train lat_retr=0.468 align=0.974 (best 0.993, gate 0.95)
+    [bpf] 37300/37500 F=3.3093e-02 move=78.3% lr=1.0e-04 t=95.7m
+    [bpf] 37350/37500 F=3.7857e-02 move=78.4% lr=1.0e-04 t=95.9m
+    [bpf] 37400/37500 F=3.5999e-02 move=78.4% lr=1.0e-04 t=96.0m
+    [bpf] 37450/37500 F=3.3505e-02 move=78.5% lr=1.0e-04 t=96.1m
+    [bpf] 37500/37500 F=3.4878e-02 move=78.5% lr=1.0e-04 t=96.2m
+    [bpf] 37500/37500 train lat_retr=0.961 align=0.986 (best 0.993, gate 0.95)
+  BPonF seed 0: move=78.5% | TRAIN lat_retr=0.961 (fit gate PASS) | HELD-OUT lat_retr=0.00000 (0/2000, chance 0.00050, -1.0 sigma) align_cos=0.889 | gen: retr=0.00050 (1/2000) diversity=0.677 recon=0.0191 (base 0.0677) i2t=0.297 | 96.3 min
+
+saved: BPonF_freelatent_results.json (+1 records, total 2)
+
+==================== BPonF FREE-LATENT VERDICT (n_train=8000, held-out only) ====================
+  seed 0: fit_gate=PASS (train 0.961, best 0.993) move=78.5% | PRIMARY latent 0/2000 (-1.0 sigma) vs bar >3/2000 | align_cos=0.889 | recon 0.0191 BEATS train-mean base 0.0677
+VERDICT: RELAXATION IS LOAD-BEARING -- free-latent BP-on-F fits train (0.961) where pinned BPonF was at chance. The pinned-latent choice drove the earlier null; the objective-attribution claim stays CONDITIONAL and the paper must say so.
+NOTE: reconstruction now BEATS the train-mean baseline on 1/1 seed(s) (pinned BPonF failed it) -- relaxation-in-training restores the reconstruction pathway while the coupling pathway stays dead, cleanly separating the two.
+JOB_OK_bpff_8k_lr1e4

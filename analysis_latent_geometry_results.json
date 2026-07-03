@@ -61,7 +61,7 @@
         "top_char_acc": 0.9815,
         "null_top_base": 0.9815
       },
-      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, nothing rescues)"
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, no rung rescues); residual caption signal (probe R2=0.49) with no cross-modal map"
     },
     "PC_armB": {
       "seed": 0,
@@ -117,7 +117,7 @@
         "top_char_acc": 0.9825,
         "null_top_base": 0.9815
       },
-      "verdict": "no caption information in text latents (probe fails, nothing rescues)"
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, no rung rescues); residual caption signal (probe R2=0.73) with no cross-modal map"
     },
     "BPonF": {
       "seed": 0,
@@ -173,7 +173,7 @@
         "top_char_acc": 0.982,
         "null_top_base": 0.9815
       },
-      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, nothing rescues)"
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, no rung rescues); residual caption signal (probe R2=0.36) with no cross-modal map"
     },
     "E1_adam": {
       "seed": 0,
@@ -229,7 +229,7 @@
         "top_char_acc": 0.986,
         "null_top_base": 0.9815
       },
-      "verdict": "coupled (raw retrieval above bar)"
+      "verdict": "coupled (raw retrieval above the pre-registered bar)"
     },
     "E1L_lars": {
       "seed": 0,
@@ -285,7 +285,63 @@
         "top_char_acc": 0.9845,
         "null_top_base": 0.9815
       },
-      "verdict": "coupled (raw retrieval above bar)"
+      "verdict": "coupled (raw retrieval above the pre-registered bar)"
+    },
+    "BPonF_free": {
+      "seed": 0,
+      "ckpt": "/home/slsang29/runs/bpff_8k/bpf_free_seed0.npz",
+      "n_train_sub": 1500,
+      "n_eval": 2000,
+      "V": 49,
+      "erank": {
+        "img_concat": 7.369150638580322,
+        "txt_concat": 5.161515235900879,
+        "img_concat_unc": 1.34294593334198,
+        "txt_concat_unc": 1.2218388319015503,
+        "img_mu_norm2": 0.8596252202987671,
+        "txt_mu_norm2": 0.9026168584823608,
+        "img_scales": [
+          1.8943086862564087,
+          3.332662582397461,
+          4.897254467010498,
+          4.16412878036499
+        ],
+        "txt_scales": [
+          1.427682638168335,
+          3.6853456497192383,
+          6.165633201599121,
+          6.2439961433410645
+        ]
+      },
+      "gap": {
+        "matched_cos": 0.8887051343917847,
+        "mismatched_cos": 0.8802135899662972,
+        "gap": 0.008491544425487496,
+        "gap_sigma": 8.749486837291567
+      },
+      "wang_isola": {
+        "align_cos": 0.8887051343917847,
+        "l_align": 0.22258974611759186,
+        "unif_img": -0.5218926668167114,
+        "unif_txt": -0.3641294538974762
+      },
+      "ladder": {
+        "raw": 0,
+        "centered": 2,
+        "centered_procrustes": 2,
+        "scale_whitened": 3,
+        "ridge": 1,
+        "ridge_lam": 0.01,
+        "bar": 3,
+        "n_eval": 2000
+      },
+      "bag_probe": {
+        "r2": 0.3840385952570775,
+        "r2_null": -0.025368869418721518,
+        "top_char_acc": 0.9815,
+        "null_top_base": 0.9815
+      },
+      "verdict": "mean-direction collapse (uncentered erank ~1 / mean carries the energy, no rung rescues); residual caption signal (probe R2=0.38) with no cross-modal map"
     }
   },
   "prediction": {
