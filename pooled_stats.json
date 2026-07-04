@@ -115,6 +115,22 @@
       "caveat": ""
     },
     {
+      "cell": "BPonF free-latent (stable, fits train) 8k",
+      "hits": 8,
+      "n": 6000,
+      "chance_den": 2000,
+      "expected": 3.0,
+      "sigma": 2.89,
+      "exact_tail": 0.011882903880013474,
+      "exact_tail_str": "1.188e-02",
+      "per_run": [
+        "s0=0/2000",
+        "s1=2/2000",
+        "s2=6/2000"
+      ],
+      "caveat": "fits train 0.96-0.99 on every seed; the unstable lr 3e-4 record is excluded"
+    },
+    {
       "cell": "PC 2k (E2, 3 seeds x 3 arms)",
       "hits": 9,
       "n": 9000,

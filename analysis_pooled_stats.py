@@ -82,6 +82,15 @@ add("E1L 20k",                  rec_hits(e1l, 20000), 2000)
 add("BPonF (Adam on F, pinned) 8k",  rec_hits(bpf, 8000), 2000)
 add("BPonF 20k",                     rec_hits(bpf, 20000), 2000)
 
+try:
+    bpff = [r for r in J("BPonF_freelatent_results.json")["records"]
+            if r["n_train"] == 8000 and r["lr"] == 1e-4 and not r.get("diverged")]   # stable runs only
+    add("BPonF free-latent (stable, fits train) 8k",
+        [(f"s{r['seed']}", int(r["hits"]), int(r["n_eval"])) for r in bpff], 2000,
+        caveat="fits train 0.96-0.99 on every seed; the unstable lr 3e-4 record is excluded")
+except FileNotFoundError:
+    pass
+
 pc2k = sum((arm_hits(f) for f in ("res_2k_150ep_s0.json", "res_2k_150ep_s1.json", "res_2k_150ep_s2.json")), [])
 add("PC 2k (E2, 3 seeds x 3 arms)", pc2k, 1000, caveat="pooled across arms and seeds; arms share splits within a seed")
 
