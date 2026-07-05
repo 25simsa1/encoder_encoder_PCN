@@ -173,12 +173,52 @@ def probe_batch(tag, bi):
     print(f"  [{tag}] FIRST NON-FINITE: {rec['first_nonfinite'] or 'none (all finite through the weight tape)'}",flush=True)
     return rec
 
+def graph_probe(tag, bi):
+    # A/B against the eager walk: run the DRIVER'S exact compiled path (tf.function relax_full loop
+    # inlined + weight_step with the LARS update at the step-0 learning rate), then scan every weight
+    # for non-finite entries. The eager probe found all-finite on these same batches while both real
+    # runs NaN'd inside the compiled step, so the compiled path is the suspect.
+    snap={k:P[k].numpy() for k in ("cb1","bbn")}                            # tiny canaries to confirm restore
+    init_host={}
+    x=tf.constant(imgs[bi]); tk=tf.constant(toks[bi])
+    igt=tf.constant(imgs[bi].reshape(len(bi),-1)); tgt=tf.constant(toks_oh[bi].reshape(len(bi),-1))
+    @tf.function
+    def relax_graph(it,tt):
+        Sv=[0.5*(it[k]+tt[k]) for k in range(NS)]
+        for _ in range(N_INFER):
+            with tf.GradientTape() as tp: tp.watch(Sv); f=F_energy(Sv,it,tt,igt,tgt,tf.reduce_sum)
+            gr=tp.gradient(f,Sv); Sv=[Sv[k]-betas[k]*gr[k] for k in range(NS)]
+        return Sv
+    @tf.function
+    def wstep_graph(S,lr):
+        with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img(x),enc_txt(tk),igt,tgt,tf.reduce_mean)
+        gr=t.gradient(F,ALL_W)
+        for v,gg in zip(ALL_W,gr):
+            if gg is None: continue
+            tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
+        return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
+    for k in P: init_host[k]=P[k].numpy()                                   # full restore point (host, 12GB at 3B)
+    it,tt=enc_img(x),enc_txt(tk)
+    Sv=relax_graph(it,tt)
+    F,mxw=wstep_graph(tuple(tf.constant(z) for z in Sv), tf.constant(LR/RAMP, tf.float32))
+    bad=[nm for nm,v in zip(NAMES,ALL_W) if not bool(tf.reduce_all(tf.math.is_finite(v)))]
+    print(f"  [GRAPH {tag}] compiled path: F={float(F):.4e} max|w|={float(mxw):.4e} "
+          f"nonfinite-after-update={bad[:6] if bad else 'none'}",flush=True)
+    for k in P: P[k].assign(init_host[k])                                   # restore init for the next probe
+    assert np.allclose(P["cb1"].numpy(), snap["cb1"]), "restore failed"
+    return dict(tag=f"graph:{tag}", F=float(F), mxw=float(mxw), nonfinite=bad)
+
 records=[]
 records.append(probe_batch("trial(sorted head)", tr_idx[:BATCH]))
 ep_rs=np.random.RandomState(SEED+7); order=ep_rs.permutation(N_TRAIN)
 for b in range(NBATCH-1):
     bi=tr_idx[order[b*BATCH:(b+1)*BATCH]]
     records.append(probe_batch(f"shuffled batch {b}", bi))
+if os.environ.get("NP_GRAPH","1")=="1":
+    records.append(graph_probe("trial(sorted head)", tr_idx[:BATCH]))
+    ep_rs2=np.random.RandomState(SEED+7); order2=ep_rs2.permutation(N_TRAIN)
+    for b in range(NBATCH-1):
+        records.append(graph_probe(f"shuffled batch {b}", tr_idx[order2[b*BATCH:(b+1)*BATCH]]))
 
 out=os.path.join(HERE,f"capacity_nanprobe_w{WMUL}.json")
 with open(out+".tmp","w") as fh: json.dump(dict(wmul=WMUL,params=NP_,batch=BATCH,lr=LR,records=records),fh,indent=2,default=str)
