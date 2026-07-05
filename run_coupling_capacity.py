@@ -309,6 +309,15 @@ def movement_now():
 
 # ============================ AUTO-BATCH FALLBACK ============================
 OOM_ERRS=(tf.errors.ResourceExhaustedError, tf.errors.InternalError)
+def restore_init():
+    # undo any trial-step corruption: the lr=0 trial update is 0*tr*gg, and 0*Inf = NaN, so an Inf
+    # gradient silently NaNs weights (observed at wmul 6.59: step-0 F=nan on the retry). Restore from
+    # the init source of truth before training.
+    if LOWHOST:
+        for k in P: P[k].assign(np.load(os.path.join(INIT_DIR, f"{k}.npy")))
+    else:
+        [P[k].assign(P_init[k]) for k in P]
+
 def pick_batch(requested):
     if not AUTOBATCH: return requested
     B=requested
@@ -319,8 +328,14 @@ def pick_batch(requested):
             igt=tf.constant(imgs[bi].reshape(len(bi),-1)); tgt=tf.constant(toks_oh[bi].reshape(len(bi),-1))
             it,tt=ops["get_taps"](x,tk)
             Sv=ops["relax_full"]([0.5*(it[k]+tt[k]) for k in range(NS)],it,tt,igt,tgt,N_INFER)
-            ops["weight_step"](x,tk,tuple(tf.constant(z) for z in Sv),igt,tgt,tf.constant(0.0,tf.float32))  # lr=0: no weight change
-            print(f"[autobatch] BATCHJ={B} fits (trial step ok)",flush=True)
+            _,mxw=ops["weight_step"](x,tk,tuple(tf.constant(z) for z in Sv),igt,tgt,tf.constant(0.0,tf.float32))  # lr=0: no INTENDED weight change
+            if not np.isfinite(float(mxw)):
+                print(f"[autobatch] trial at BATCHJ={B} produced non-finite weights (Inf gradient met the "
+                      f"lr=0 update; 0*Inf=NaN); restoring init. The rung will surface the divergence "
+                      f"honestly at step 0 instead of training on corrupted weights.",flush=True)
+                restore_init()
+            else:
+                print(f"[autobatch] BATCHJ={B} fits (trial step ok, weights finite)",flush=True)
             return B
         except OOM_ERRS as e:
             print(f"[autobatch] BATCHJ={B} OOM ({type(e).__name__}), halving",flush=True)
