@@ -66,10 +66,19 @@ ARMS   = [a.strip() for a in os.environ.get("RUNS1_ARMS", "A,B" if SMOKE else "A
 CKPT_EVERY = int(os.environ.get("CAP_CKPT_EVERY", 0))
 RESUME = os.environ.get("CAP_RESUME", "auto")
 AUTOBATCH = os.environ.get("CAP_AUTOBATCH", "1") == "1"
+LOWHOST = os.environ.get("CAP_LOWHOST", "0") == "1"
+# CAP_LOWHOST: for the multi-billion rungs the default pathway is unaffordable on the host side. It
+# keeps a full host copy of every weight (P_init, 30.8 GB at 7.7B) for reset() and for the per-log
+# movement() readout (which re-uploads that copy to the GPU every 50 steps), and the cap77b rung was
+# cgroup-OOM-killed exactly there. Low-host mode streams the init to disk one tensor at a time, skips
+# the periodic movement print (F is the periodic trace), computes the final movement per-tensor from
+# the on-disk init, and streams checkpoints per-tensor. Host peak becomes one tensor, not the model.
+# Numerically nothing changes: training math is identical, only logging and persistence move.
 os.makedirs(CKPT, exist_ok=True); os.makedirs(DATA, exist_ok=True)
 assert RES % 16 == 0, "RES must be divisible by 16"
 assert all(a in ("A","B","A_long") for a in ARMS), "RUNS1_ARMS must be a subset of A,B,A_long"
 if CKPT_EVERY: assert ARMS == ["A"], "checkpoint/resume is supported for the arm-A-only ladder runs"
+if LOWHOST: assert ARMS == ["A"], "low-host mode assumes the single-arm ladder run (reset is a no-op)"
 
 # recipe constants (identical to run_coupling_scale.py)
 HEADS, NBLK, NS = 4, 4, 4
@@ -274,9 +283,29 @@ def unif_np(Z, t=2.0, cap=2000, rng=None):
     return float(np.log(np.mean(np.exp(-t * d2[iu])) + 1e-30))
 
 # ============================ BUILD ONCE, snapshot init ============================
-P,c=build(WMUL,SEED); P_init={k:v.numpy().copy() for k,v in P.items()}; ops=make_ops(P,c)
+P,c=build(WMUL,SEED); ops=make_ops(P,c)
 NP=int(sum(int(np.prod(v.shape)) for v in P.values()))
-def reset(): [P[k].assign(P_init[k]) for k in P]
+INIT_DIR=os.path.join(CKPT, f"init_w{WMUL}_seed{SEED}")
+if LOWHOST:
+    os.makedirs(INIT_DIR, exist_ok=True)
+    for k in P:                                                            # one tensor at a time: host peak = largest tensor
+        fp=os.path.join(INIT_DIR, f"{k}.npy")
+        if not os.path.exists(fp): np.save(fp, P[k].numpy())
+    P_init=None
+    print(f"[lowhost] init streamed to {INIT_DIR}; no host-resident weight copy",flush=True)
+else:
+    P_init={k:v.numpy().copy() for k,v in P.items()}
+def reset():
+    if LOWHOST: return                                                     # single fresh-process arm A: weights ARE the init
+    [P[k].assign(P_init[k]) for k in P]
+def movement_now():
+    if not LOWHOST: return movement(P,P_init)
+    num=0.0; den=0.0
+    for k in P:                                                            # per-tensor from disk; host peak = one tensor
+        b=np.load(os.path.join(INIT_DIR, f"{k}.npy"), mmap_mode="r")
+        bt=tf.constant(np.ascontiguousarray(b))
+        num+=float(tf.reduce_sum((P[k]-bt)**2)); den+=float(tf.reduce_sum(bt**2)); del bt
+    return math.sqrt(num)/(math.sqrt(den)+1e-9)
 
 # ============================ AUTO-BATCH FALLBACK ============================
 OOM_ERRS=(tf.errors.ResourceExhaustedError, tf.errors.InternalError)
@@ -357,20 +386,33 @@ def state_path(arm): return os.path.join(CKPT, f"cap_state_{arm}_w{WMUL}_seed{SE
 
 def save_state(arm, step, order, ptr, rs, Fhist):
     st=rs.get_state()                                                        # ('MT19937', keys, pos, has_gauss, cached)
-    payload={f"W__{k}": P[k].numpy() for k in P}
-    payload.update(__step=np.int64(step), __order=order.astype("int64"), __ptr=np.int64(ptr),
-                   __rng_keys=st[1].astype("uint32"), __rng_pos=np.int64(st[2]),
-                   __rng_hg=np.int64(st[3]), __rng_cg=np.float64(st[4]),
-                   __fhist=np.asarray(Fhist[-200:], "float64"))
-    tmp=state_path(arm)+".tmp.npz"
-    np.savez(tmp, **payload); os.replace(tmp, state_path(arm))
-    print(f"    [ckpt] saved state at step {step} ({os.path.getsize(state_path(arm))/2**30:.1f} GB)",flush=True)
+    meta=dict(__step=np.int64(step), __order=order.astype("int64"), __ptr=np.int64(ptr),
+              __rng_keys=st[1].astype("uint32"), __rng_pos=np.int64(st[2]),
+              __rng_hg=np.int64(st[3]), __rng_cg=np.float64(st[4]),
+              __fhist=np.asarray(Fhist[-200:], "float64"))
+    if LOWHOST:
+        sd=state_path(arm)+".dir"; os.makedirs(sd, exist_ok=True)
+        for k in P: np.save(os.path.join(sd, f"{k}.npy"), P[k].numpy())     # streamed: host peak = one tensor
+        tmp=os.path.join(sd, "meta.tmp.npz"); np.savez(tmp, **meta)
+        os.replace(tmp, os.path.join(sd, "meta.npz"))                       # meta last = commit marker
+        print(f"    [ckpt] saved state at step {step} (streamed dir)",flush=True)
+    else:
+        payload={f"W__{k}": P[k].numpy() for k in P}; payload.update(meta)
+        tmp=state_path(arm)+".tmp.npz"
+        np.savez(tmp, **payload); os.replace(tmp, state_path(arm))
+        print(f"    [ckpt] saved state at step {step} ({os.path.getsize(state_path(arm))/2**30:.1f} GB)",flush=True)
 
 def load_state(arm, rs):
-    p=state_path(arm)
-    if RESUME in ("0","no") or not os.path.exists(p): return None
-    z=np.load(p)
-    for k in P: P[k].assign(z[f"W__{k}"])
+    if RESUME in ("0","no"): return None
+    sd=state_path(arm)+".dir"; mp=os.path.join(sd, "meta.npz")
+    if LOWHOST and os.path.exists(mp):
+        z=np.load(mp)
+        for k in P: P[k].assign(np.load(os.path.join(sd, f"{k}.npy")))      # streamed
+    elif (not LOWHOST) and os.path.exists(state_path(arm)):
+        z=np.load(state_path(arm))
+        for k in P: P[k].assign(z[f"W__{k}"])
+    else:
+        return None
     rs.set_state(("MT19937", z["__rng_keys"], int(z["__rng_pos"]), int(z["__rng_hg"]), float(z["__rng_cg"])))
     step=int(z["__step"]); order=z["__order"].astype("int64").copy(); ptr=int(z["__ptr"])
     fh=list(z["__fhist"])
@@ -406,7 +448,9 @@ def joint_phase(arm, total_steps, jointw):
             ops["warmup_step"](tf.constant(imgs[wi]), tf.constant(toks[wi]), tf.constant(cur*jointw,tf.float32), tmp)
         if not (np.isfinite(F) and mxw<DIVERGE_W):
             diverged=True; print(f"    !! DIVERGENCE step {s}: F={F:.3e} max|w|={mxw:.2e}",flush=True); break
-        if (s+1)%LOG_EVERY==0: print(f"    [joint] {s+1:5d}/{total_steps} F={F:.4e} move={movement(P,P_init)*100:.1f}% lr={cur:.1e} t={(time.time()-t0)/60:.1f}m",flush=True)
+        if (s+1)%LOG_EVERY==0:
+            mv="" if LOWHOST else f" move={movement(P,P_init)*100:.1f}%"     # lowhost: movement only at the end (host cost)
+            print(f"    [joint] {s+1:5d}/{total_steps} F={F:.4e}{mv} lr={cur:.1e} t={(time.time()-t0)/60:.1f}m",flush=True)
         if CKPT_EVERY and arm=="A" and (s+1)%CKPT_EVERY==0 and (s+1)<total_steps:
             save_state(arm, s+1, order, ptr, ep_rs, Fhist)
     return Fhist, diverged
@@ -421,8 +465,13 @@ def run_arm(name, do_warmup, joint_steps, jointw):
             postwarm=latent_readout(ev_idx)
             print(f"  ARM {name} POST-WARMUP held-out: align_cos={postwarm['align_cos']:.3f} lat_retr={postwarm['lat_retr']:.3f}",flush=True)
     Fhist,diverged=joint_phase(name, joint_steps, jointw)
-    move=movement(P,P_init); elapsed=(time.time()-t0)/60
-    try: np.savez(os.path.join(CKPT,f"cap_{name}_w{WMUL}_seed{SEED}.npz"), **{k:P[k].numpy() for k in P})
+    move=movement_now(); elapsed=(time.time()-t0)/60
+    try:
+        if LOWHOST:
+            fd=os.path.join(CKPT,f"cap_{name}_w{WMUL}_seed{SEED}.dir"); os.makedirs(fd, exist_ok=True)
+            for k in P: np.save(os.path.join(fd, f"{k}.npy"), P[k].numpy())  # streamed final ckpt (dir layout)
+        else:
+            np.savez(os.path.join(CKPT,f"cap_{name}_w{WMUL}_seed{SEED}.npz"), **{k:P[k].numpy() for k in P})
     except Exception as e: print(f"    !! ckpt save failed: {e}",flush=True)
     try: peak=tf.config.experimental.get_memory_info("GPU:0")["peak"]/2**30
     except Exception: peak=None
@@ -446,7 +495,7 @@ if "A_long" in ARMS: results["arm_A_long"]=run_arm("A_long", False, LONG_STEPS, 
 dump=dict(config=dict(smoke=SMOKE,arms=ARMS,wmul=WMUL,params=NP,N_have=N_HAVE,N_train=NTR,N_eval=NEV,
                       RES=RES,CAPLEN=CAPLEN,V=V,lr=LR,batchj=BATCHJ,batchj_requested=BATCHJ_REQ,
                       epochs=EPOCHS,joint_steps=JOINT_STEPS,ramp=RAMP,jointw=JOINTW,seed=SEED,
-                      n_infer=N_INFER,ckpt_every=CKPT_EVERY),
+                      n_infer=N_INFER,ckpt_every=CKPT_EVERY,lowhost=LOWHOST),
           **results, i2t_base_train=i2t_base_on(tr_idx), i2t_base_eval=(i2t_base_on(ev_idx) if NEV else None))
 out=os.path.join(HERE,f"coupling_capacity_w{WMUL}_seed{SEED}.json")
 with open(out+".tmp","w") as fh: json.dump(dump,fh,indent=2)
