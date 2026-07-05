@@ -15,6 +15,12 @@ import os, sys, time, json, math
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", os.environ.get("RUNS1_GPU", "0"))
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 import numpy as np, tensorflow as tf
+if os.environ.get("NP_ARITHOFF", "0") == "1":
+    # the graph A/B localized the non-finite gradients to the FFN tensors in the COMPILED path only
+    # (eager finite on the same batches), implicating grappler's arithmetic rewrites; this flag is the
+    # candidate fix, a compiler option with no mathematical content.
+    tf.config.optimizer.set_experimental_options({"arithmetic_optimization": False})
+    print("[flag] grappler arithmetic_optimization DISABLED", flush=True)
 
 HERE   = os.path.dirname(os.path.abspath(__file__))
 SEED   = int(os.environ.get("RUNS1_SEED", 0))
