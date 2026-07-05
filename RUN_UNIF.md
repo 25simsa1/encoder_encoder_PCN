@@ -80,8 +80,11 @@ rule."
 
 - BP-unif ran on an L4 (the cluster's full A100 was held by another user's job); peak 7.5 GB at
   BATCHJ=128, so the batch size held at 128 for both arms as pre-registered.
-- Supplementary lambda=0.3 rung (PC, seed 0) queued for a dose-response point; not load-bearing for the
-  verdict above.
+- Supplementary lambda=0.3 rung (PC, seed 0) replicates the branch-2 pattern at one-third the weight,
+  so the verdict is not a lambda=1.0 artifact: move 256%, u to -3.88, TRAIN lat_retr 0.945, held-out
+  2/2000 (chance), held-out unif_img/txt -1.96/-1.87 (out of the F-family band, dose-responsively less
+  spread than lambda=1.0's -2.2 to -2.8), recon 0.0225 beats 0.0677, diversity 0.391. Not load-bearing
+  for the verdict above.
 - Reproduce: `sbatch -p normal -c 8 -J unif_pc_s0 --gres=gpu:L4:1 --mem=48G -t 1-00:00:00
   --export=ALL,RUNS1_SEED=0,UNIF_ARM=pc,UNIF_LAMBDA=1.0,UNIF_T=2.0 ~/hpc/unif_job.sh` (seeds 1,2 and
   UNIF_ARM=bp analogous). Raw per-job records in unif_unif_*.json, merged in
