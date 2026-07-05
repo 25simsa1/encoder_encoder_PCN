@@ -1,0 +1,47 @@
+{
+  "device": "L4",
+  "records": [
+    {
+      "device": "L4",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "pc",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 5.578696250915527,
+      "sec_per_step": 0.6164294004440307,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "adam",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 11.825968027114868,
+      "sec_per_step": 0.5717827320098877,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "lars",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 6.8817503452301025,
+      "sec_per_step": 0.4597672939300537,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    }
+  ]
+}

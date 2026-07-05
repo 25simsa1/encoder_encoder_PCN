@@ -1,0 +1,75 @@
+{
+  "device": "L4_318",
+  "records": [
+    {
+      "device": "L4_318",
+      "wmul": 3.18,
+      "params": 700795531,
+      "mode": "pc",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 9.265190124511719,
+      "sec_per_step": 1.09146888256073,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4_318",
+      "wmul": 3.18,
+      "params": null,
+      "mode": "adam",
+      "batch": 128,
+      "fit": false,
+      "peak_gb": 20.287943124771118,
+      "sec_per_step": null,
+      "err": "OOM: ResourceExhaustedError",
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4_318",
+      "wmul": 3.18,
+      "params": null,
+      "mode": "adam",
+      "batch": 64,
+      "fit": false,
+      "peak_gb": 20.302096128463745,
+      "sec_per_step": null,
+      "err": "OOM: ResourceExhaustedError",
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4_318",
+      "wmul": 3.18,
+      "params": 700795531,
+      "mode": "adam",
+      "batch": 32,
+      "fit": true,
+      "peak_gb": 19.273813486099243,
+      "sec_per_step": 0.5764990091323853,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "L4_318",
+      "wmul": 3.18,
+      "params": 700795531,
+      "mode": "lars",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 12.335926532745361,
+      "sec_per_step": 0.8747148752212525,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    }
+  ]
+}

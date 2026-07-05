@@ -1,0 +1,89 @@
+{
+  "device": "A100_659",
+  "records": [
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": 3002452749,
+      "mode": "pc",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 29.184943199157715,
+      "sec_per_step": 1.0346280813217164,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": null,
+      "mode": "adam",
+      "batch": 128,
+      "fit": false,
+      "peak_gb": 76.18350577354431,
+      "sec_per_step": null,
+      "err": "OOM: ResourceExhaustedError",
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": null,
+      "mode": "adam",
+      "batch": 64,
+      "fit": false,
+      "peak_gb": 76.89040517807007,
+      "sec_per_step": null,
+      "err": "OOM: ResourceExhaustedError",
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": null,
+      "mode": "adam",
+      "batch": 32,
+      "fit": false,
+      "peak_gb": 77.2813777923584,
+      "sec_per_step": null,
+      "err": "OOM: ResourceExhaustedError",
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": 3002452749,
+      "mode": "adam",
+      "batch": 16,
+      "fit": true,
+      "peak_gb": 77.0945611000061,
+      "sec_per_step": 0.33871965408325194,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100_659",
+      "wmul": 6.59,
+      "params": 3002452749,
+      "mode": "lars",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 41.89378643035889,
+      "sec_per_step": 0.703954553604126,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "device": "A100",
+  "records": [
+    {
+      "device": "A100",
+      "wmul": 4.66,
+      "params": 1500584411,
+      "mode": "pc",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 16.069985389709473,
+      "sec_per_step": 0.6290914297103882,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100",
+      "wmul": 4.66,
+      "params": 1500584411,
+      "mode": "adam",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 44.80424451828003,
+      "sec_per_step": 0.4009261131286621,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "A100",
+      "wmul": 4.66,
+      "params": 1500584411,
+      "mode": "lars",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 22.848064661026,
+      "sec_per_step": 0.3287513256072998,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    }
+  ]
+}

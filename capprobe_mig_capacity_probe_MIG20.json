@@ -1,0 +1,47 @@
+{
+  "device": "MIG20",
+  "records": [
+    {
+      "device": "MIG20",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "pc",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 5.772365570068359,
+      "sec_per_step": 0.8413905620574951,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "MIG20",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "adam",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 11.878384590148926,
+      "sec_per_step": 0.5865684032440186,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    },
+    {
+      "device": "MIG20",
+      "wmul": 2.18,
+      "params": 330164875,
+      "mode": "lars",
+      "batch": 128,
+      "fit": true,
+      "peak_gb": 7.0184690952301025,
+      "sec_per_step": 0.5154665470123291,
+      "err": null,
+      "n_infer": 8,
+      "steps": 20,
+      "fp32": true
+    }
+  ]
+}
