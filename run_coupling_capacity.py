@@ -300,12 +300,26 @@ def reset():
     [P[k].assign(P_init[k]) for k in P]
 def movement_now():
     if not LOWHOST: return movement(P,P_init)
-    num=0.0; den=0.0
-    for k in P:                                                            # per-tensor from disk; host peak = one tensor
-        b=np.load(os.path.join(INIT_DIR, f"{k}.npy"), mmap_mode="r")
-        bt=tf.constant(np.ascontiguousarray(b))
-        num+=float(tf.reduce_sum((P[k]-bt)**2)); den+=float(tf.reduce_sum(bt**2)); del bt
-    return math.sqrt(num)/(math.sqrt(den)+1e-9)
+    # chunked, host-side fp64: the naive GPU form ((P[k]-init)**2) allocates two full-tensor temporaries,
+    # which is 30 GB for Wi0 at 7.7B and OOMs a card that already holds the weights (observed post-
+    # divergence on cap77br, and it would equally kill a healthy run's final readout). Row-chunks bound
+    # the transfer at ~64M elements; exception guard so movement can never take the readouts down with it.
+    try:
+        num=0.0; den=0.0
+        for k in P:
+            b=np.load(os.path.join(INIT_DIR, f"{k}.npy"), mmap_mode="r")
+            shp=P[k].shape
+            rows=int(shp[0]) if len(shp)>0 else 1
+            per_row=int(np.prod(shp[1:])) if len(shp)>1 else 1
+            step=max(1, int(64e6)//max(per_row,1))
+            for i in range(0, rows, step):
+                a=P[k][i:i+step].numpy().astype("float64")
+                bb=np.asarray(b[i:i+step], dtype="float64")
+                num+=float(((a-bb)**2).sum()); den+=float((bb**2).sum())
+        return math.sqrt(num)/(math.sqrt(den)+1e-9)
+    except Exception as e:
+        print(f"    !! movement_now failed ({type(e).__name__}: {e}); recording movement=None",flush=True)
+        return None
 
 # ============================ AUTO-BATCH FALLBACK ============================
 OOM_ERRS=(tf.errors.ResourceExhaustedError, tf.errors.InternalError)
@@ -493,7 +507,8 @@ def run_arm(name, do_warmup, joint_steps, jointw):
     if diverged: return dict(name=name,diverged=True,move=move,elapsed=elapsed,postwarm=postwarm,peak_gpu_gb=peak)
     tr_sub = tr_idx if NTR<=READTRAIN else tr_idx[np.random.RandomState(SEED+3).choice(NTR,READTRAIN,replace=False)]
     m_tr,_=readouts(tr_sub); m_ev,_=(readouts(ev_idx) if NEV else (None,None))
-    print(f"  ARM {name}: move={move*100:.1f}% | HELD-OUT lat {m_ev['lat_hits']}/{NEV} "
+    mv_s = "n/a" if move is None else f"{move*100:.1f}%"
+    print(f"  ARM {name}: move={mv_s} | HELD-OUT lat {m_ev['lat_hits']}/{NEV} "
           f"({sigma_above_chance(m_ev['lat_hits'],NEV):+.1f} sigma, bar >3) align={m_ev['align_cos']:.3f} "
           f"unif_img/txt={m_ev['unif_img']:.2f}/{m_ev['unif_txt']:.2f} | gen retr={m_ev['retr']:.5f} "
           f"({m_ev['hits']}/{NEV}) diversity={m_ev['diversity']:.3f} recon={m_ev['recon']:.4f} "
@@ -522,14 +537,15 @@ print(f"\n==================== CAPACITY RUNG VERDICT (wmul={WMUL}, {NP/1e9:.2f}B
 a=results.get("arm_A")
 if a is None: print("VERDICT: no arm A in this run.",flush=True)
 elif a["diverged"]: print("VERDICT: DIVERGED. Report with trace; this rung is a stability datum, not a coupling datum.",flush=True)
-elif a["move"]<MOVE_MIN: print(f"VERDICT: VOID (move {a['move']*100:.0f}% < {MOVE_MIN*100:.0f}% floor). Undertrained, not a negative.",flush=True)
+elif a["move"] is not None and a["move"]<MOVE_MIN: print(f"VERDICT: VOID (move {a['move']*100:.0f}% < {MOVE_MIN*100:.0f}% floor). Undertrained, not a negative.",flush=True)
 else:
     ho=a["heldout"]
     if a["lat_hits"]>3:
         print(f"VERDICT: BRANCH (b) CANDIDATE AT THIS RUNG. PC held-out latent {a['lat_hits']}/{NEV} crosses the bar "
               f"at {NP/1e9:.2f}B. Do NOT write the word emerges: queue seeds 1,2 and a 20k rung at this size first.",flush=True)
     else:
-        print(f"VERDICT: PC flat at this rung ({a['lat_hits']}/{NEV}, {a['sigma']:+.1f} sigma) with move {a['move']*100:.0f}%, "
+        mvv = "n/a" if a["move"] is None else f"{a['move']*100:.0f}%"
+        print(f"VERDICT: PC flat at this rung ({a['lat_hits']}/{NEV}, {a['sigma']:+.1f} sigma) with move {mvv}, "
               f"align {ho['align_cos']:.3f}, unif {ho['unif_img']:.2f}/{ho['unif_txt']:.2f}. Branch (a) row; the BP "
               f"baseline at this WMUL adjudicates the pair.",flush=True)
 if SMOKE: print("\n[SMOKE] mechanics only. Confirms arm selection, autobatch trial, ckpt save/resume path, "
