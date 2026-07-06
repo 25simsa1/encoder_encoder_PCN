@@ -231,7 +231,10 @@ def run_seed(seed):
     # plain LARS, byte-matched to run_coupling_scale.py weight_step (NO Adam moments, NO momentum)
     tmp = tf.constant(TEMP, tf.float32)
 
-    @tf.function
+    def _maybe_compile(f):
+        import os as _os
+        return f if _os.environ.get("E1_EAGER","0")=="1" else tf.function(f)
+    @_maybe_compile
     def bp_step(xb, tkb, lr):
         with tf.GradientTape() as tp:
             tp.watch(TV); zi, zt = ops["latents"](xb, tkb); L = ops["infonce"](zi, zt, tmp)

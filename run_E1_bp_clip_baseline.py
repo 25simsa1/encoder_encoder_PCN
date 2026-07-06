@@ -240,7 +240,10 @@ def run_seed(seed):
     B1, B2, EPS = 0.9, 0.999, 1e-8
     tmp = tf.constant(TEMP, tf.float32)
 
-    @tf.function
+    def _maybe_compile(f):
+        import os as _os
+        return f if _os.environ.get("E1_EAGER","0")=="1" else tf.function(f)
+    @_maybe_compile
     def bp_step(xb, tkb, lr, t):
         with tf.GradientTape() as tp:
             tp.watch(TV); zi, zt = ops["latents"](xb, tkb); L = ops["infonce"](zi, zt, tmp)
