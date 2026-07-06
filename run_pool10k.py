@@ -20,6 +20,7 @@ import numpy as np, tensorflow as tf
 HOME=os.path.expanduser("~"); HERE=os.path.dirname(os.path.abspath(__file__))
 DATA=os.environ.get("RUNS1_DATA",os.path.join(HOME,"coco_scale")); COCO=os.environ.get("RUNS1_COCO","train2017")
 POOL_START=int(os.environ.get("POOL_START",108000)); POOL_N=int(os.environ.get("POOL_N",10000))
+POOL_SRC=os.environ.get("POOL_SRC","far")   # far = ext gallery; near = same-size held-out from the 22k cache
 READB=int(os.environ.get("READB",64)); PREFIX=22000
 RES,CAPLEN,NS,HEADS,NBLK=64,64,4,4,4
 DEFAULT=";".join([
@@ -105,12 +106,24 @@ for nm,path,seed,ntrain in SPECS:
     if not os.path.exists(path): print(f"!! SKIP {nm}: missing {path}",flush=True); continue
     t0=time.time(); P=load_ckpt(path); latents=make(P)
     perm=np.random.RandomState(seed+1).permutation(NHAVE_ORIG); tr=perm[:ntrain]  # checkpoint's own train split over the ORIGINAL cache
-    chars,c2i=build_vocab([caps_orig[i] for i in tr]); toks=encode_caps(gallery_caps,c2i,CAPLEN)
+    chars,c2i=build_vocab([caps_orig[i] for i in tr])
+    # POOL_SRC disambiguates the two things the far gallery changes vs the standard 2k eval: SIZE and
+    # COMPOSITION. far = the ext-cache gallery [108k:118k] (distant COCO subset). near = a same-size pool
+    # from the ORIGINAL 22k cache, held-out-from-training (perm[ntrain:ntrain+N]), i.e. the standard eval
+    # distribution scaled up. Comparing near vs far isolates distribution-distance from pool size.
+    if POOL_SRC=="near":
+        navail=NHAVE_ORIG-ntrain; npool=min(POOL_N,navail)
+        n_idx=perm[ntrain:ntrain+npool]
+        eval_imgs=np.asarray(np.load(os.path.join(DATA,f"imgs_sc_{COCO}.npy"),mmap_mode="r")[np.sort(n_idx)],dtype="float32")
+        srt=np.sort(n_idx); eval_caps=[caps_orig[i] for i in srt]
+    else:
+        eval_imgs=gallery_imgs; eval_caps=gallery_caps
+    toks=encode_caps(eval_caps,c2i,CAPLEN); Meval=len(eval_caps)
     ZIl=[];ZTl=[]
-    for st in range(0,len(g_idx),READB):
-        xb=tf.constant(gallery_imgs[st:st+READB]); tb=tf.constant(toks[st:st+READB])
+    for st in range(0,Meval,READB):
+        xb=tf.constant(eval_imgs[st:st+READB]); tb=tf.constant(toks[st:st+READB])
         ZI,ZT=latents(xb,tb); ZIl.append(ZI.numpy()); ZTl.append(ZT.numpy())
-    ZI=np.concatenate(ZIl); ZT=np.concatenate(ZTl); M=len(g_idx)
+    ZI=np.concatenate(ZIl); ZT=np.concatenate(ZTl); M=Meval
     # GRADED retrieval over the full gallery. top-1 among 10000 distractors is a far more stringent bar
     # than among 2000, so a weak-but-real signal (visible as e.g. 7/2000) can read as chance on top-1
     # here; the graded metrics (recall@k, median rank, MRR) reveal whether a shifted rank distribution
@@ -130,10 +143,12 @@ for nm,path,seed,ntrain in SPECS:
     results[nm]=dict(path=path,seed=seed,n_train=ntrain,gallery=M,hits=hits,chance=p,sigma=sigma,binom_sf=sf,V=len(chars),
                      recall1=hits,recall10=r10,recall10_exp=10,recall10_sf=r10_sf,recall100=r100,recall100_exp=100,
                      recall100_sf=r100_sf,median_rank=medrank,median_rank_chance=M/2.0,mrr=mrr)
-    print(f"[{nm}] ({time.time()-t0:.0f}s) R@1 {hits}/{M} (P={sf:.1e}) | R@10 {r10} (exp 10, P={r10_sf:.1e}) | "
+    results[nm]["pool_src"]=POOL_SRC
+    print(f"[{nm}|{POOL_SRC}] ({time.time()-t0:.0f}s) R@1 {hits}/{M} (P={sf:.1e}) | R@10 {r10} (exp 10, P={r10_sf:.1e}) | "
           f"R@100 {r100} (exp 100, P={r100_sf:.1e}) | medrank {medrank:.0f}/{M//2} | MRR {mrr:.2e} V={len(chars)}",flush=True)
     del P; tf.keras.backend.clear_session()
 
-with open(os.path.join(HERE,"pool10k_results.json"),"w") as fh:
-    json.dump(dict(config=dict(gallery_start=POOL_START,gallery_n=len(g_idx),coco=COCO),systems=results),fh,indent=2)
-print(f"saved: pool10k_results.json ({len(results)} systems)",flush=True); print("JOB_OK_pool10k",flush=True)
+_out = f"pool10k_results_{POOL_SRC}.json" if POOL_SRC!="far" else "pool10k_results.json"
+with open(os.path.join(HERE,_out),"w") as fh:
+    json.dump(dict(config=dict(gallery_start=POOL_START,gallery_n=len(g_idx),coco=COCO,pool_src=POOL_SRC),systems=results),fh,indent=2)
+print(f"saved: {_out} ({len(results)} systems)",flush=True); print("JOB_OK_pool10k",flush=True)
