@@ -86,20 +86,26 @@ def binom_sf(hits,n,p):
         for i in range(0,hits): s+=term; term*=lam/(i+1)
         return float(max(0.0,1.0-s))
 
+# gallery images/captions come from the EXTENDED cache (positions >=108000, disjoint from all training
+# by id-position separation). Old-checkpoint vocabularies come from the ORIGINAL 22k cache directly, so
+# they are exact regardless of any ext-prefix drift.
 imgs=np.load(os.path.join(DATA,f"imgs_sc_{COCO}_ext.npy"),mmap_mode="r")
-caps=open(os.path.join(DATA,f"caps_sc_{COCO}_ext.txt")).read().split("\n")[:imgs.shape[0]]
+ext_caps=open(os.path.join(DATA,f"caps_sc_{COCO}_ext.txt")).read().split("\n")[:imgs.shape[0]]
 NHAVE_EXT=imgs.shape[0]
+caps_orig=open(os.path.join(DATA,f"caps_sc_{COCO}.txt")).read().split("\n")   # original 22k captions for vocab
+NHAVE_ORIG=len(caps_orig)
 g_end=min(POOL_START+POOL_N,NHAVE_EXT); g_idx=np.arange(POOL_START,g_end)
-assert POOL_START>=PREFIX, "gallery must start beyond the 22k prefix"
+assert POOL_START>=PREFIX and POOL_START>=NHAVE_ORIG, "gallery must start beyond every training id-position"
 gallery_imgs=np.asarray(imgs[POOL_START:g_end],dtype="float32")             # materialize the 10k gallery once
-print(f"[data] ext cache {NHAVE_EXT} | gallery [{POOL_START}:{g_end}] = {len(g_idx)} imgs (chance {1/len(g_idx):.2e})",flush=True)
+gallery_caps=[ext_caps[i] for i in range(POOL_START,g_end)]
+print(f"[data] ext cache {NHAVE_EXT} | orig cache {NHAVE_ORIG} | gallery [{POOL_START}:{g_end}] = {len(g_idx)} imgs (chance {1/len(g_idx):.2e})",flush=True)
 
 results={}
 for nm,path,seed,ntrain in SPECS:
     if not os.path.exists(path): print(f"!! SKIP {nm}: missing {path}",flush=True); continue
     t0=time.time(); P=load_ckpt(path); latents=make(P)
-    perm=np.random.RandomState(seed+1).permutation(PREFIX); tr=perm[:ntrain]  # this checkpoint's own train vocab
-    chars,c2i=build_vocab([caps[i] for i in tr]); toks=encode_caps([caps[i] for i in g_idx],c2i,CAPLEN)
+    perm=np.random.RandomState(seed+1).permutation(NHAVE_ORIG); tr=perm[:ntrain]  # checkpoint's own train split over the ORIGINAL cache
+    chars,c2i=build_vocab([caps_orig[i] for i in tr]); toks=encode_caps(gallery_caps,c2i,CAPLEN)
     ZIl=[];ZTl=[]
     for st in range(0,len(g_idx),READB):
         xb=tf.constant(gallery_imgs[st:st+READB]); tb=tf.constant(toks[st:st+READB])

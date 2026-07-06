@@ -77,12 +77,17 @@ for iid in ids:
 imgs = np.asarray(imgs, "float32")
 print(f"[data] assembled {imgs.shape}", flush=True)
 
+# NOTE on disjointness: the gallery block [108000:118000] is disjoint from every training set in the
+# paper because it sits at id-LIST positions >=108000 while all banked runs used ids from list positions
+# <22300 and item D trains only on ext positions [0:108000]. This holds by id-position separation and does
+# NOT require the ext prefix to be byte-identical to the old cache (failed/differing downloads can shift
+# which image lands at which array index). We still REPORT the prefix overlap as a diagnostic; A1 sources
+# each old checkpoint's vocab from the ORIGINAL cache directly, so it never depends on ext prefix identity.
 if os.path.exists(f_img_old):
     old = np.load(f_img_old, mmap_mode="r")
     n = min(PREFIX, len(old), len(imgs))
     match = bool(np.array_equal(np.asarray(old[:n]), imgs[:n]))
-    print(f"[verify] first {n} entries identical to the shared 22k cache: {match}", flush=True)
-    assert match, "prefix mismatch -- id ordering diverged; refusing to write an incomparable cache"
+    print(f"[verify] ext prefix byte-identical to the shared 22k cache: {match} (not required; see note)", flush=True)
 
 np.save(f_img_ext, imgs); open(f_cap_ext, "w").write("\n".join(caps))
 print(f"[data] wrote {f_img_ext} {imgs.shape} and captions ({(time.time()-t0)/60:.0f}m total)", flush=True)
