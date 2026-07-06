@@ -195,14 +195,19 @@ def graph_probe(tag, bi):
             with tf.GradientTape() as tp: tp.watch(Sv); f=F_energy(Sv,it,tt,igt,tgt,tf.reduce_sum)
             gr=tp.gradient(f,Sv); Sv=[Sv[k]-betas[k]*gr[k] for k in range(NS)]
         return Sv
+    LS=float(os.environ.get("NP_LOSSSCALE","1.0"))
     @tf.function
     def wstep_graph(S,lr):
-        with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img(x),enc_txt(tk),igt,tgt,tf.reduce_mean)
+        # NP_LOSSSCALE: pre-scale the weight-tape loss. Backward is linear in the output gradient, so
+        # every backward intermediate scales by LS, moving the near-overflow FFN backward away from the
+        # fp32 ceiling; the LARS update lr*(||v||+1e-3)/(||g||+1e-6)*g is invariant to gradient scale up
+        # to the epsilon floors, so the update is mathematically unchanged. Relaxation stays unscaled.
+        with tf.GradientTape() as t: t.watch(ALL_W); F=LS*F_energy(S,enc_img(x),enc_txt(tk),igt,tgt,tf.reduce_mean)
         gr=t.gradient(F,ALL_W)
         for v,gg in zip(ALL_W,gr):
             if gg is None: continue
             tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
-        return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
+        return F/LS, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
     for k in P: init_host[k]=P[k].numpy()                                   # full restore point (host, 12GB at 3B)
     it,tt=enc_img(x),enc_txt(tk)
     Sv=relax_graph(it,tt)
