@@ -111,13 +111,27 @@ for nm,path,seed,ntrain in SPECS:
         xb=tf.constant(gallery_imgs[st:st+READB]); tb=tf.constant(toks[st:st+READB])
         ZI,ZT=latents(xb,tb); ZIl.append(ZI.numpy()); ZTl.append(ZT.numpy())
     ZI=np.concatenate(ZIl); ZT=np.concatenate(ZTl); M=len(g_idx)
-    # text->image top-1 over the full gallery, chunked argmax to avoid an MxM matrix
-    hits=0
-    for st in range(0,M,512):
-        blk=ZT[st:st+512]@ZI.T; hits+=int(np.sum(np.argmax(blk,1)==np.arange(st,st+len(blk))))
+    # GRADED retrieval over the full gallery. top-1 among 10000 distractors is a far more stringent bar
+    # than among 2000, so a weak-but-real signal (visible as e.g. 7/2000) can read as chance on top-1
+    # here; the graded metrics (recall@k, median rank, MRR) reveal whether a shifted rank distribution
+    # survives at this resolution. rank = # gallery images MORE similar than the true match (0 = best).
+    ranks=np.empty(M,dtype=np.int64)
+    for st in range(0,M,256):
+        blk=ZT[st:st+256]@ZI.T                                              # (chunk, M)
+        n=blk.shape[0]; qi=np.arange(st,st+n)
+        true_sim=blk[np.arange(n),qi]
+        ranks[st:st+n]=(blk > true_sim[:,None]).sum(1)
+    hits=int((ranks==0).sum())                                             # recall@1 == top-1
+    r10=int((ranks<10).sum()); r100=int((ranks<100).sum())
+    medrank=float(np.median(ranks)); mrr=float(np.mean(1.0/(ranks+1.0)))
     p=1.0/M; sf=binom_sf(hits,M,p); sigma=(hits-M*p)/math.sqrt(M*p*(1-p))
-    results[nm]=dict(path=path,seed=seed,n_train=ntrain,gallery=M,hits=hits,chance=p,sigma=sigma,binom_sf=sf,V=len(chars))
-    print(f"[{nm}] ({time.time()-t0:.0f}s) hits {hits}/{M} (chance {M*p:.1f}, {sigma:+.1f} sigma, P(>= )={sf:.2e}) V={len(chars)}",flush=True)
+    # chance references: median rank ~ M/2, recall@k ~ k/M*M = k expected, MRR ~ (ln M)/M
+    r10_sf=binom_sf(r10,M,10.0/M); r100_sf=binom_sf(r100,M,100.0/M)
+    results[nm]=dict(path=path,seed=seed,n_train=ntrain,gallery=M,hits=hits,chance=p,sigma=sigma,binom_sf=sf,V=len(chars),
+                     recall1=hits,recall10=r10,recall10_exp=10,recall10_sf=r10_sf,recall100=r100,recall100_exp=100,
+                     recall100_sf=r100_sf,median_rank=medrank,median_rank_chance=M/2.0,mrr=mrr)
+    print(f"[{nm}] ({time.time()-t0:.0f}s) R@1 {hits}/{M} (P={sf:.1e}) | R@10 {r10} (exp 10, P={r10_sf:.1e}) | "
+          f"R@100 {r100} (exp 100, P={r100_sf:.1e}) | medrank {medrank:.0f}/{M//2} | MRR {mrr:.2e} V={len(chars)}",flush=True)
     del P; tf.keras.backend.clear_session()
 
 with open(os.path.join(HERE,"pool10k_results.json"),"w") as fh:
