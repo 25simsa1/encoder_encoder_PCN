@@ -245,10 +245,22 @@ def make_ops(P,c):
     # the unnormalized residual stream. Eager execution of the weight tape is the probe-validated path;
     # the relaxation stays compiled (its gradient is wrt S only and never backprops the transformer).
     # Math is untouched, execution mode only. Costs ~2-3x on the weight step at the big rungs.
-    def _maybe_compile(f): return f if os.environ.get("CAP_EAGER_WSTEP","0")=="1" else tf.function(f)
+    # CAP_RECOMPUTE (gradient checkpointing, for 7.7B where the eager weight tape OOMs even at batch 1):
+    # the memory hog is the encoder-forward activations stored for the weight gradient. Wrapping enc_img
+    # and enc_txt in tf.recompute_grad recomputes those activations during backward instead of storing
+    # them, at the cost of one extra encoder forward. The relaxation never runs the encoder forward (it
+    # differentiates F wrt S with the taps held constant), so it is untouched and stays compiled. Math
+    # is identical to the eager weight step; the equivalence gate at 156M/3B must confirm it before the
+    # 7.7B number is trusted. Recompute implies eager (custom-gradient recompute is not composed with the
+    # NaN-prone compiled FFN backward).
+    RECOMPUTE = os.environ.get("CAP_RECOMPUTE","0")=="1"
+    EAGER_WSTEP = os.environ.get("CAP_EAGER_WSTEP","0")=="1" or RECOMPUTE
+    enc_img_w = tf.recompute_grad(enc_img) if RECOMPUTE else enc_img
+    enc_txt_w = tf.recompute_grad(enc_txt) if RECOMPUTE else enc_txt
+    def _maybe_compile(f): return f if EAGER_WSTEP else tf.function(f)
     @_maybe_compile
     def weight_step(x,tk,S,igt,tgt,lr):
-        with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img(x),enc_txt(tk),igt,tgt,tf.reduce_mean)
+        with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img_w(x),enc_txt_w(tk),igt,tgt,tf.reduce_mean)
         gr=t.gradient(F,ALL_W)
         for v,gg in zip(ALL_W,gr):
             if gg is None: continue
