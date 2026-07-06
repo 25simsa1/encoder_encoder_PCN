@@ -111,3 +111,4 @@ print(f"GATE {'PASS' if PASS else 'FAIL'} (criterion: cosine>0.9999 and relL2<1e
 json.dump(dict(wmul=WMUL,params=NP,F_eager=Fe,F_recompute=Fr,global_cosine=gcos,global_relL2=grel,
                worst=[(nm,rl) for nm,rl,_ in rows[:10]],passed=PASS),open(os.path.join(HERE,f"recompute_gate_w{WMUL}.json"),"w"),indent=2)
 print(f"saved: recompute_gate_w{WMUL}.json | JOB_OK_recompute_gate",flush=True)
+import sys as _sys; _sys.exit(0 if PASS else 1)   # nonzero on FAIL so an afterok flagship dependency will not launch on a failed gate
