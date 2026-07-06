@@ -29,11 +29,12 @@ DEFAULT=";".join([
   f"PC20k_s0={HOME}/runs/20k_150ep/cs_A_seed0.npz:0:20000",
   f"PC20k_s1={HOME}/runs/20k_150ep_s1/cs_A_seed1.npz:1:20000",
   f"PC20k_s2={HOME}/runs/20k_150ep_s2/cs_A_seed2.npz:2:20000",
-  f"BP_E1_8k={HOME}/runs/E1_8k/e1_seed0.npz:0:8000",
-  f"BP_E1_20k={HOME}/runs/E1_20k/e1_seed0.npz:0:20000",
-  f"E1L_8k={HOME}/runs/E1L_8k/e1l_seed0.npz:0:8000",
-  f"E1L_20k={HOME}/runs/E1L_20k/e1l_seed0.npz:0:20000",
+  f"BP_E1_8k={HOME}/runs/geom_ckpts/e1_seed0.npz:0:8000",
+  f"E1L_8k={HOME}/runs/geom_ckpts/e1l_seed0.npz:0:8000",
+  f"BPonF_8k={HOME}/runs/geom_ckpts/bpf_seed0.npz:0:8000",
   f"PC_3B={HOME}/runs/cap3be/cap_A_w6.59_seed0.dir:0:8000",
+  # 20k BP/E1L on the gallery come from item D's gallery-eval runs (no old 20k checkpoint survived); A1
+  # covers the surviving checkpoints: PC 8k/20k all seeds, BP E1 8k, E1L 8k, BPonF 8k, and 3B.
 ])
 SPECS=[]
 for e in os.environ.get("POOL_SPECS",DEFAULT).split(";"):

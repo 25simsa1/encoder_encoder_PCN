@@ -100,7 +100,10 @@ def load_synthetic(seed):
     return imgs, caps
 
 def load_coco():
-    f_img,f_cap = os.path.join(DATA,f"imgs_sc_{COCO}.npy"), os.path.join(DATA,f"caps_sc_{COCO}.txt")
+    # E1_EXT: use the extended 118k cache (item D data ladder + gallery eval). Default off -> the shared
+    # 22k cache, byte-identical to every banked E1 run.
+    _sfx = "_ext" if os.environ.get("E1_EXT","0")=="1" else ""
+    f_img,f_cap = os.path.join(DATA,f"imgs_sc_{COCO}{_sfx}.npy"), os.path.join(DATA,f"caps_sc_{COCO}{_sfx}.txt")
     if os.path.exists(f_img) and os.path.exists(f_cap):
         imgs=np.load(f_img); caps=open(f_cap).read().split("\n")[:len(imgs)]
         print(f"[data] reused cache {imgs.shape}",flush=True); return imgs, caps
@@ -213,8 +216,19 @@ def run_seed(seed):
     imgs, caps = get_data(seed)
     N_HAVE = len(imgs)
     assert N_HAVE >= N_TRAIN + 1, f"only {N_HAVE} pairs, need >= {N_TRAIN}+1"
-    perm = np.random.RandomState(seed+1).permutation(N_HAVE)          # same split law as the PC runs
-    tr_idx = perm[:N_TRAIN]; ev_idx = perm[N_TRAIN:N_TRAIN+N_EVAL]
+    # E1_POOLEND: restrict the training permutation to indices [0:POOLEND] so the held-out gallery block
+    # can be reserved out of training (item D trains on [0:108000], gallery is [108000:118000]). Default
+    # 0 -> full N_HAVE, the banked behavior. E1_GALLERY="start:n": evaluate on a FIXED gallery slice
+    # instead of the permutation's held-out tail (the shared A1 gallery), so every rung is scored on the
+    # same never-trained images. Default "" -> the perm eval tail.
+    _pool = int(os.environ.get("E1_POOLEND","0")) or N_HAVE
+    perm = np.random.RandomState(seed+1).permutation(_pool)           # same split law as the PC runs
+    tr_idx = perm[:N_TRAIN]
+    _gal = os.environ.get("E1_GALLERY","")
+    if _gal:
+        _gs,_gn = (int(v) for v in _gal.split(":")); ev_idx = np.arange(_gs, min(_gs+_gn, N_HAVE))
+    else:
+        ev_idx = perm[N_TRAIN:N_TRAIN+N_EVAL]
     NTR, NEV = len(tr_idx), len(ev_idx)
     chars, c2i = build_vocab([caps[i] for i in tr_idx]); V = len(chars)
     toks = encode_caps(caps, c2i, CAPLEN)
