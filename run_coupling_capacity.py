@@ -238,7 +238,15 @@ def make_ops(P,c):
             with tf.GradientTape() as tp: tp.watch(Sv); f=F_energy(Sv,it,tt,igt,tgt,tf.reduce_sum)
             gr=tp.gradient(f,Sv); Sv=[Sv[k]-betas[k]*gr[k] for k in range(NS)]
         return Sv
-    @tf.function
+    # CAP_EAGER_WSTEP: the compiled weight step NaNs the FFN gradients at wmul>=6.59 on some batches
+    # (probe chain: eager finite on every batch including the killers; arithmetic-optimizer flag moved
+    # WHICH batches die; a 1e-6 loss prescale changed nothing, excluding magnitude overflow). The
+    # residual is a graph-compiled local-derivative NaN (Inf*0 class) on large FFN pre-activations of
+    # the unnormalized residual stream. Eager execution of the weight tape is the probe-validated path;
+    # the relaxation stays compiled (its gradient is wrt S only and never backprops the transformer).
+    # Math is untouched, execution mode only. Costs ~2-3x on the weight step at the big rungs.
+    def _maybe_compile(f): return f if os.environ.get("CAP_EAGER_WSTEP","0")=="1" else tf.function(f)
+    @_maybe_compile
     def weight_step(x,tk,S,igt,tgt,lr):
         with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img(x),enc_txt(tk),igt,tgt,tf.reduce_mean)
         gr=t.gradient(F,ALL_W)
