@@ -20,14 +20,14 @@ class AttentionPCNLayer:
         self.d_model = d_model
         self.num_heads = num_heads
         if mask is not None:
-            self.mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
+            self.mask = mask[:, None, None, :]
         else:
             self.mask=None
         
     
     def __call__(self, x:tf.Tensor, mask:tf.Tensor=None):
         if mask is not None:
-            self.mask = (mask[:, :, None]+mask[:, :, None])[:, None, :, :]
+            self.mask = mask[:, None, None, :]
         q, k, v = tf.split(tf.transpose(tf.reshape(x, (*x.shape[:2], self.num_heads, 3*(self.d_model//self.num_heads))), perm=[0, 2, 1, 3]), 3, -1)
         attention = ( q @ tf.linalg.matrix_transpose(k) ) / (self.d_model//self.num_heads)
         if self.mask is not None:

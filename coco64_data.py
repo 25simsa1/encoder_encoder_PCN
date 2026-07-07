@@ -52,6 +52,8 @@ def load_vocab(path):
 def load_batch(n, seed=0, split="train2017"):
     imgs = np.load(f"{CACHE}/imgs_sc_{split}.npy", mmap_mode="r")
     caps = open(f"{CACHE}/caps_sc_{split}.txt").read().splitlines()
+    # images and captions are aligned 1:1 by line/array order (built paired by the cache).
+    assert abs(imgs.shape[0] - len(caps)) <= 2, f"image/caption count mismatch: {imgs.shape[0]} imgs vs {len(caps)} caps"
     k = min(n, imgs.shape[0], len(caps))
     rng = np.random.default_rng(seed)
     idx = rng.permutation(k)                          # fixed 2k subset = first k, shuffled

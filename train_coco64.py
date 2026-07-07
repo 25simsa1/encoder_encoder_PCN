@@ -24,7 +24,7 @@ def energy_stats(m):
                 total_err += err; n += 1
             except Exception:
                 pass
-    return total_err / max(1, n), max_abs
+    return (total_err / n if n > 0 else float("nan")), max_abs
 
 def main():
     ap = argparse.ArgumentParser()
