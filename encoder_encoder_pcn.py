@@ -269,10 +269,10 @@ class EncoderEncoderPCN:
 
         self.txt_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.txt_input)
-        txt_embedding = DensePCNLayer(config.txt_embed_dim, learning_rate, 'linear', self.txt_input)
+        txt_embedding = DensePCNLayer(config.txt_group_widths[0], learning_rate, 'linear', self.txt_input)
         self.trainable_layers.append(txt_embedding)
         self.txt_input.next_layers = [txt_embedding]
-        pos_encoding = PositionalEncodingLayer(config.txt_embed_dim, txt_embedding)
+        pos_encoding = PositionalEncodingLayer(config.txt_group_widths[0], txt_embedding)
         txt_embedding.next_layers = [pos_encoding]
 
         # Transformer trunk as four groups. Group g has config.txt_group_blocks[g]

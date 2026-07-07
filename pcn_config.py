@@ -20,6 +20,12 @@ class PCNConfig:
                               # (dense3,dense7,dense11,dense15,dense19); -1 = final block
     conv_padding: str         # conv op padding: 'VALID' (native, shrinks) or 'SAME' (coco64, preserves spatial)
 
+    def __post_init__(self):
+        assert len(self.conv_channels) == 9, "expected 9 conv channels"
+        assert len(self.img_dense_relu_widths) == len(self.shared_latent_dims) == len(self.txt_dense_relu_widths) == len(self.txt_tap_indices) == 5, "expected 5 per-scale values"
+        assert len(self.txt_group_widths) == len(self.txt_group_blocks), "group widths/blocks length mismatch"
+        assert len(self.txt_bridge_seq_lens) == len(self.txt_group_widths) - 1, "expected one bridge per group gap"
+
 NATIVE_7B = PCNConfig(
     name="native7b",
     img_resolution=572,
@@ -49,7 +55,7 @@ COCO64_156M = PCNConfig(
     inter_dim=100,
     img_dense_relu_widths=(6144, 12288, 24576, 49152, 98304),
     shared_latent_dims=(6144, 12288, 24576, 49152, 98304),
-    txt_seq_len=32, txt_embed_dim=512,
+    txt_seq_len=64, txt_embed_dim=50,   # 50 = coco64_data.V (one-hot char), 64 = seq
     txt_group_widths=(512, 512, 512, 512),
     txt_group_blocks=(1, 1, 1, 3),
     txt_heads=8, txt_sublayers=3,

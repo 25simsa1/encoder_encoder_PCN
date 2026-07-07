@@ -38,7 +38,8 @@ def test_coco64_is_64px_and_smaller():
     assert c.inter_dim == 100
     # initial estimate (Task 4 tunes these); must be far smaller than native
     assert max(c.shared_latent_dims) <= max(NATIVE_7B.shared_latent_dims) // 10
-    assert c.txt_seq_len == 32
+    assert c.txt_seq_len == 64
+    assert c.txt_embed_dim == 50
     assert c.conv_padding == 'SAME'
 
 
@@ -47,3 +48,12 @@ def test_conv_padding_is_config_driven():
     # convs preserve spatial size and only the 4 maxpools reduce 64->4.
     assert NATIVE_7B.conv_padding == 'VALID'
     assert COCO64_156M.conv_padding == 'SAME'
+
+
+def test_config_post_init_lengths():
+    from pcn_config import PCNConfig, NATIVE_7B, COCO64_156M
+    for c in (NATIVE_7B, COCO64_156M):
+        assert len(c.conv_channels) == 9
+        assert len(c.img_dense_relu_widths) == 5 == len(c.shared_latent_dims) == len(c.txt_dense_relu_widths) == len(c.txt_tap_indices)
+        assert len(c.txt_group_widths) == len(c.txt_group_blocks)
+        assert len(c.txt_bridge_seq_lens) == len(c.txt_group_widths) - 1
