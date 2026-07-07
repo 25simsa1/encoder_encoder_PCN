@@ -3,7 +3,6 @@ from conv_pcn_layer import Conv2DPCNLayer, MaxPool2DPCNLayer
 from dense_pcn_layer import DensePCNLayer
 from transformer_pcn_layer import TransformerPCNLayer, PositionalEncodingLayer, AttentionPCNLayer, AddNormalizePCNLayer
 from typing import Literal
-import gc
 class InputPCNLayer:
     is_clamped : tf.Variable # bool
     fix_wts_b : tf.Variable # bool
@@ -476,7 +475,6 @@ class EncoderEncoderPCN:
                 layer.update_state()
                 layer.update_wts()
                 layer.update_b()
-                gc.collect()
 
     def update_states_wts_b_relaxed(self, num_weight_steps:int, num_relax_steps:int):
         # Predictive-coding training schedule. With inputs clamped, first relax the
@@ -493,7 +491,6 @@ class EncoderEncoderPCN:
             for layer in self.trainable_layers:
                 layer.update_wts()
                 layer.update_b()
-            gc.collect()
 
 
     def train_step(self, num_steps:int, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, mask:tf.Tensor=None):
