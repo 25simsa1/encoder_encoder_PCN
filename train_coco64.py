@@ -52,6 +52,8 @@ def main():
              if isinstance(getattr(l, at, None), tf.Variable)]
     ckpt = tf.train.Checkpoint(**{f"v{i}": v for i, v in enumerate(ALL_W)})
     mgr = tf.train.CheckpointManager(ckpt, a.ckpt, max_to_keep=1)
+    best_mgr = tf.train.CheckpointManager(ckpt, a.ckpt + "_best", max_to_keep=1)  # lowest-energy weights
+    best_e = float("inf")
     if a.resume and mgr.latest_checkpoint:
         ckpt.restore(mgr.latest_checkpoint); print("resumed", mgr.latest_checkpoint, flush=True)
 
@@ -67,6 +69,8 @@ def main():
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
                 print(f"[step {step} ep {ep}] energy={e:.5f} max_abs_state={mx:.3f} ({(time.time()-t0)/step:.2f}s/step)", flush=True)
+                if np.isfinite(e) and e < best_e:
+                    best_e = e; best_mgr.save(); print(f"best @ {step} energy={e:.5f}", flush=True)
                 if not np.isfinite(e) or not np.isfinite(mx) or mx > 1e6:
                     print(f"DIVERGED at step {step}", flush=True); mgr.save(); return
             if step % 1000 == 0:
