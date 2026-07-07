@@ -133,6 +133,12 @@ class EncoderEncoderPCN:
     def __init__(self, learning_rate : float):
         self.trainable_layers = []
         self.learning_rate = learning_rate
+        # Lazily-built graph-compiled PC sweep (see update_states_wts_b) plus its
+        # trace counter. The sweep is compiled once per clamp configuration; the
+        # train path (update_states_wts_b) clamps BOTH inputs, so exactly one
+        # trace is expected across the whole run.
+        self._compiled_sweep = None
+        self._sweep_trace_count = 0
         self.img_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.img_input)
         conv1 = Conv2DPCNLayer(64, (3, 3), learning_rate, 'relu', self.img_input)
@@ -470,11 +476,34 @@ class EncoderEncoderPCN:
 
     
     def update_states_wts_b(self, num_steps:int):
-        for step in tf.range(num_steps):
-            for layer in self.trainable_layers:
-                layer.update_state()
-                layer.update_wts()
-                layer.update_b()
+        # Graph-compile the single interleaved PC sweep ONCE, then drive it from a
+        # plain Python loop. Previously this eager-dispatched ~143 layer objects
+        # (each doing several assign_sub ops) every step. Wrapping ONE full sweep
+        # in tf.function unrolls the `for layer in self.trainable_layers` loop into
+        # a single graph at first trace (slow once), after which every step is one
+        # fast graph execution. The per-layer math is untouched — the same
+        # update_state();update_wts();update_b() calls in the same interleaved
+        # order — so the relaxed states match the eager golden baseline.
+        #
+        # No variables are created inside the graph: lazy tf.Variable init (wts/b,
+        # state, and share_state_layer aliasing) all happens in pass_through, which
+        # runs before this. The clamp flags are Python bools, so per-layer branches
+        # (is_clamped / activation / prev_layer) bake at TRACE time; this method is
+        # only used with both inputs clamped, hence a single trace.
+        if self._compiled_sweep is None:
+            @tf.function(reduce_retracing=True)
+            def _sweep():
+                # Python side effect: runs only while TRACING, so it counts traces.
+                self._sweep_trace_count += 1
+                print(f"[tf.function] tracing compiled PC sweep "
+                      f"(trace #{self._sweep_trace_count})", flush=True)
+                for layer in self.trainable_layers:
+                    layer.update_state()
+                    layer.update_wts()
+                    layer.update_b()
+            self._compiled_sweep = _sweep
+        for _ in range(int(num_steps)):
+            self._compiled_sweep()
 
     def update_states_wts_b_relaxed(self, num_weight_steps:int, num_relax_steps:int):
         # Predictive-coding training schedule. With inputs clamped, first relax the
