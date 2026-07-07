@@ -257,3 +257,20 @@ Graph-compiled, gc-free, memory-flat, batched `EncoderEncoderPCN` whose relaxed 
 - Spec coverage: this plan covers spec Phase 2 (execution rewrite: gc, graph mode, leak, batching, validation gate) in full. Spec Phase 3 (64px retarget) and Phase 4 (train + eval both pathways) are deliberately deferred to their own plans, because their concrete steps depend on Phase 2's measured per-step time, max batch, and leak resolution.
 - Placeholder scan: Tasks 3 and 4 are investigation-gated by design (diagnose-then-fix a real, undiagnosed memory growth); each is anchored by a concrete measurement and a pass/fail test rather than invented fix code, which is the honest structure for a debugging task. All other tasks have exact code, files, and commands.
 - Type consistency: `run_reference`, `golden_state_signature`, `compare` signatures are used consistently across Tasks 1, 2, 4, 5, 6.
+
+---
+
+## Phase 2b: adopt + compile the canonical relax-then-step schedule (added 2026-07-06, user decision)
+
+Phase 2 compiled `update_states_wts_b` (interleaved: a weight step every state step), which is what the gate and `train_step` call. But the canonical predictive-coding training schedule the design names is `update_states_wts_b_relaxed` (relax ALL states for `num_relax_steps` substeps with weights frozen, THEN one weight step), which is still eager/uncompiled. The user chose to adopt the relaxed schedule as the training method and compile it now. It produces DIFFERENT states than the interleaved method, so it needs its OWN golden baseline (cannot reuse `golden_baseline.npz`). `train_step`'s signature is left unchanged in this sub-phase (rewiring it needs the `num_relax_steps` hyperparameter, a Phase 4 choice, and would break the integration test); Phase 4 calls `update_states_wts_b_relaxed` directly.
+
+### Task R1: relaxed-mode gate + eager golden baseline
+- Modify `tools/rewrite_gate.py`: add `--relaxed`, `--relax-steps R` (default 5), `--weight-steps W` (default 2). When `--relaxed`, `run_reference` calls `m.update_states_wts_b_relaxed(W, R)` instead of `m.update_states_wts_b(steps)`; the per-layer state-norm signature is recorded the same way. Keep the default (non-relaxed) path byte-identical.
+- Run the CURRENT (eager, uncompiled) relaxed method on the H200 to record `golden_relaxed_baseline.npz`; fetch it back and check it with `tools/npz_finite.py` (all norms finite — a NaN here would mean the relaxation itself is unstable at 572px, a finding).
+- Commit the gate extension + the baseline.
+- Done when: `GOLDEN ... relaxed W=2 R=5 ...` prints with finite values and `golden_relaxed_baseline.npz` is committed.
+
+### Task R2: graph-compile `update_states_wts_b_relaxed`
+- Modify `encoder_encoder_pcn.py`: compile the relaxed schedule's two sweeps as separate lazily-built `@tf.function`s cached in NEW instance attrs (e.g. `_compiled_relax_sweep` = `for layer: layer.update_state()`, `_compiled_learn_sweep` = `for layer: layer.update_wts(); layer.update_b()`), driven by plain Python loops (`for weight_step in range(W): for _ in range(R): relax(); then learn()`). Apply the SAME clamp-signature + state-Variable-id guard as `update_states_wts_b` (its own recorded sig/ids, checked each call). Do not change any per-layer math or the sweep order. No variables created in-graph (all init is in `pass_through`).
+- Validate: re-run the gate in `--relaxed` mode → must `GATE_MATCH` against `golden_relaxed_baseline.npz` (rel-tol 1e-4). Confirm one trace per sweep. Measure warm per-weight-step vs the eager relaxed time.
+- Commit. Done when: relaxed-mode `GATE_MATCH nlayers=143`, single trace per sweep, speedup recorded.
