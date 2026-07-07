@@ -339,6 +339,8 @@ class EncoderEncoderPCN:
         inter12.next_layers = [dense4]
         self.trainable_layers.append(dense4)
 
+        self._infonce_codes = (inter2, inter12)   # deepest-scale image / text branch codes (for optional InfoNCE coupling)
+
         flatten4 = FlattenPCNLayer(tap_dense7[-1])
         tap_dense7[-1].next_layers.append(flatten4)
         inter13 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten4)
