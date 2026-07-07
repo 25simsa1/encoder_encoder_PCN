@@ -269,189 +269,130 @@ class EncoderEncoderPCN:
 
         self.txt_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.txt_input)
-        txt_embedding = DensePCNLayer(512, learning_rate, 'linear', self.txt_input)
+        txt_embedding = DensePCNLayer(config.txt_embed_dim, learning_rate, 'linear', self.txt_input)
         self.trainable_layers.append(txt_embedding)
         self.txt_input.next_layers = [txt_embedding]
-        pos_encoding = PositionalEncodingLayer(512, txt_embedding)
+        pos_encoding = PositionalEncodingLayer(config.txt_embed_dim, txt_embedding)
         txt_embedding.next_layers = [pos_encoding]
-        transformer1 = TransformerPCNLayer(3, 512, 8, learning_rate, pos_encoding)
-        transformer1_layers = transformer1.get_layers()
-        pos_encoding.next_layers=[transformer1_layers[0]]
-        self.trainable_layers += transformer1_layers
-        transformer2 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1])
-        transformer2_layers = transformer2.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer2_layers[0]]
-        self.trainable_layers += transformer2_layers
-        transformer3 = TransformerPCNLayer(3, 512, 8, learning_rate, self.trainable_layers[-1])
-        transformer3_layers = transformer3.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer3_layers[0]]
-        self.trainable_layers += transformer3_layers
-        linear_1 = DensePCNLayer(1024, learning_rate, 'linear', self.trainable_layers[-1])
-        self.trainable_layers[-1].next_layers = [linear_1]
-        self.trainable_layers.append(linear_1)
-        tp1 = TransposePCNLayer(linear_1)
-        linear_1.next_layers = [tp1]
-        linear_2 = DensePCNLayer(48, learning_rate, 'linear', tp1)
-        tp1.next_layers = [linear_2]
-        self.trainable_layers.append(linear_2)
-        tp2 = TransposePCNLayer(linear_2)
-        linear_2.next_layers = [tp2]
-        # mask_bool = (mask==0)
-        # new_mask_bool_48 = (mask_bool @ tf.abs(linear_2.wts)) > 0
-        # new_mask_48 = tf.where(new_mask_bool_48, -1e9, 0.0) 
-        transformer4 = TransformerPCNLayer(3, 1024, 8, learning_rate, tp2)
-        transformer4_layers = transformer4.get_layers()
-        tp2.next_layers = [transformer4_layers[0]]
-        self.trainable_layers += transformer4_layers
-        transformer5 = TransformerPCNLayer(3, 1024, 8, learning_rate, self.trainable_layers[-1])
-        transformer5_layers = transformer5.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer5_layers[0]]
-        self.trainable_layers += transformer5_layers
-        transformer6 = TransformerPCNLayer(3, 1024, 8, learning_rate, self.trainable_layers[-1])
-        transformer6_layers = transformer6.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer6_layers[0]]
-        self.trainable_layers += transformer6_layers
-        linear_3 = DensePCNLayer(2048, learning_rate, 'linear', self.trainable_layers[-1])
-        self.trainable_layers[-1].next_layers = [linear_3]
-        self.trainable_layers.append(linear_3)
-        tp3 = TransposePCNLayer(linear_3)
-        linear_3.next_layers = [tp3]
-        linear_4 = DensePCNLayer(12, learning_rate, 'linear', tp3)
-        tp3.next_layers = [linear_4]
-        self.trainable_layers.append(linear_4)
-        tp4 = TransposePCNLayer(linear_4)
-        linear_4.next_layers = [tp4]
-        # new_mask_bool_12 = (new_mask_bool_48 @ tf.abs(linear_4.wts)) > 0
-        # new_mask_12 = tf.where(new_mask_bool_12, -1e9, 0.0) 
-        transformer7 = TransformerPCNLayer(3, 2048, 8, learning_rate, tp4)
-        transformer7_layers = transformer7.get_layers()
-        tp4.next_layers = [transformer7_layers[0]]
-        self.trainable_layers += transformer7_layers
-        transformer8 = TransformerPCNLayer(3, 2048, 8, learning_rate, self.trainable_layers[-1])
-        transformer8_layers = transformer8.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer8_layers[0]]
-        self.trainable_layers += transformer8_layers
-        transformer9 = TransformerPCNLayer(3, 2048, 8, learning_rate, self.trainable_layers[-1])
-        transformer9_layers = transformer9.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer9_layers[0]]
-        self.trainable_layers += transformer9_layers
-        linear_5 = DensePCNLayer(4096, learning_rate, 'linear', self.trainable_layers[-1])
-        self.trainable_layers[-1].next_layers = [linear_5]
-        self.trainable_layers.append(linear_5)
-        tp5 = TransposePCNLayer(linear_5)
-        linear_5.next_layers = [tp5]
-        linear_6 = DensePCNLayer(3, learning_rate, 'linear', tp5)
-        tp5.next_layers = [linear_6]
-        self.trainable_layers.append(linear_6)
-        tp6 = TransposePCNLayer(linear_6)
-        linear_6.next_layers = [tp6]
-        # new_mask_bool_3 = (new_mask_bool_12 @ tf.abs(linear_6.wts)) > 0
-        # new_mask_3 = tf.where(new_mask_bool_3, -1e9, 0.0)
-        transformer10 = TransformerPCNLayer(3, 4096, 8, learning_rate, tp6)
-        transformer10_layers = transformer10.get_layers()
-        tp6.next_layers = [transformer10_layers[0]]
-        self.trainable_layers+=transformer10_layers
-        transformer11 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer11_layers = transformer11.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer11_layers[0]]
-        self.trainable_layers += transformer11_layers
-        transformer12 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer12_layers = transformer12.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer12_layers[0]]
-        self.trainable_layers += transformer12_layers
-        transformer13 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer13_layers = transformer13.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer13_layers[0]]
-        self.trainable_layers += transformer13_layers
-        transformer14 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer14_layers = transformer14.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer14_layers[0]]
-        self.trainable_layers += transformer14_layers
-        transformer15 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer15_layers = transformer15.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer15_layers[0]]
-        self.trainable_layers += transformer15_layers
-        transformer16 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer16_layers = transformer16.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer16_layers[0]]
-        self.trainable_layers += transformer16_layers
-        transformer17 = TransformerPCNLayer(3, 4096, 8, learning_rate, self.trainable_layers[-1])
-        transformer17_layers = transformer17.get_layers()
-        self.trainable_layers[-1].next_layers = [transformer17_layers[0]]
-        self.trainable_layers += transformer17_layers
+
+        # Transformer trunk as four groups. Group g has config.txt_group_blocks[g]
+        # TransformerPCNLayer blocks of width config.txt_group_widths[g], each with
+        # config.txt_heads heads and config.txt_sublayers feed-forward sublayers.
+        # Between consecutive groups a bridge widens to the next group's width
+        # (a linear + transpose) then reduces the sequence length to
+        # config.txt_bridge_seq_lens[g] (a linear + transpose). This reproduces the
+        # hand-built 3+3+3+8 trunk exactly: same block sequence, same append order
+        # into trainable_layers, same next_layers wiring (assignment; the group's
+        # last block gets its .next_layers set by the following bridge, or stays
+        # empty for the final group so the flatten2 tap assigns it below).
+        txt_transformers = []          # every block's get_layers(), in build order
+        group_input = pos_encoding     # feeds the first block of the current group
+        num_groups = len(config.txt_group_widths)
+        for g in range(num_groups):
+            width = config.txt_group_widths[g]
+            for b in range(config.txt_group_blocks[g]):
+                prev = group_input if b == 0 else self.trainable_layers[-1]
+                block_layers = TransformerPCNLayer(
+                    config.txt_sublayers, width, config.txt_heads, learning_rate, prev
+                ).get_layers()
+                prev.next_layers = [block_layers[0]]
+                self.trainable_layers += block_layers
+                txt_transformers.append(block_layers)
+            if g < num_groups - 1:
+                linear_up = DensePCNLayer(config.txt_group_widths[g + 1], learning_rate, 'linear', self.trainable_layers[-1])
+                self.trainable_layers[-1].next_layers = [linear_up]
+                self.trainable_layers.append(linear_up)
+                tp_up = TransposePCNLayer(linear_up)
+                linear_up.next_layers = [tp_up]
+                linear_down = DensePCNLayer(config.txt_bridge_seq_lens[g], learning_rate, 'linear', tp_up)
+                tp_up.next_layers = [linear_down]
+                self.trainable_layers.append(linear_down)
+                tp_down = TransposePCNLayer(linear_down)
+                linear_down.next_layers = [tp_down]
+                group_input = tp_down
+
+        # Text-tap attachment blocks, preserved verbatim from the hand-built
+        # NATIVE_7B trunk (only the tap WIDTHS below are config-driven). Four taps
+        # read a group's last block; dense7/8 reads transformer #13 (the 4th block
+        # of the final group), which is NOT a group boundary. These attachment
+        # indices are NATIVE-specific.
+        transformer3_layers = txt_transformers[2]    # group 0 last block
+        transformer6_layers = txt_transformers[5]    # group 1 last block
+        transformer9_layers = txt_transformers[8]    # group 2 last block
+        transformer13_layers = txt_transformers[12]  # group 3, block 4 (irregular tap)
 
         flatten2 = FlattenPCNLayer(self.trainable_layers[-1])
         self.trainable_layers[-1].next_layers = [flatten2]
-        inter11 = DensePCNLayer(100, learning_rate, 'linear', flatten2)
+        inter11 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten2)
         flatten2.next_layers = [inter11]
         self.trainable_layers.append(inter11)
-        dense3 = DensePCNLayer(36864, learning_rate, 'relu', inter11)
+        dense3 = DensePCNLayer(config.txt_dense_relu_widths[0], learning_rate, 'relu', inter11)
         inter11.next_layers = [dense3]
         self.trainable_layers.append(dense3)
-        inter12 = DensePCNLayer(100, learning_rate, 'linear', dense3)
+        inter12 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense3)
         dense3.next_layers = [inter12]
         self.trainable_layers.append(inter12)
-        dense4 = DensePCNLayer(102400, learning_rate, 'relu', inter12, share_state_layer=dense2)
+        dense4 = DensePCNLayer(config.shared_latent_dims[0], learning_rate, 'relu', inter12, share_state_layer=dense2)
         inter12.next_layers = [dense4]
         self.trainable_layers.append(dense4)
 
         flatten4 = FlattenPCNLayer(transformer13_layers[-1])
         transformer13_layers[-1].next_layers.append(flatten4)
-        inter13 = DensePCNLayer(100, learning_rate, 'linear', flatten4)
+        inter13 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten4)
         flatten4.next_layers = [inter13]
         self.trainable_layers.append(inter13)
-        dense7 = DensePCNLayer(44237, learning_rate, 'relu', inter13)
+        dense7 = DensePCNLayer(config.txt_dense_relu_widths[1], learning_rate, 'relu', inter13)
         inter13.next_layers = [dense7]
         self.trainable_layers.append(dense7)
-        inter14 = DensePCNLayer(100, learning_rate, 'linear', dense7)
+        inter14 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense7)
         dense7.next_layers = [inter14]
         self.trainable_layers.append(inter14)
-        dense8 = DensePCNLayer(161817, learning_rate, 'linear', inter14, share_state_layer=dense6)
+        dense8 = DensePCNLayer(config.shared_latent_dims[1], learning_rate, 'linear', inter14, share_state_layer=dense6)
         inter14.next_layers = [dense8]
         self.trainable_layers.append(dense8)
 
         flatten6 = FlattenPCNLayer(transformer9_layers[-1])
         transformer9_layers[-1].next_layers.append(flatten6)
-        inter15 = DensePCNLayer(100, learning_rate, 'linear', flatten6)
+        inter15 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten6)
         flatten6.next_layers = [inter15]
         self.trainable_layers.append(inter15)
-        dense11 = DensePCNLayer(90931, learning_rate, 'relu', inter15)
+        dense11 = DensePCNLayer(config.txt_dense_relu_widths[2], learning_rate, 'relu', inter15)
         inter15.next_layers = [dense11]
         self.trainable_layers.append(dense11)
-        inter16 = DensePCNLayer(100, learning_rate, 'linear', dense11)
+        inter16 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense11)
         dense11.next_layers = [inter16]
         self.trainable_layers.append(inter16)
-        dense12 = DensePCNLayer(345871, learning_rate, 'linear', inter16, share_state_layer=dense10)
+        dense12 = DensePCNLayer(config.shared_latent_dims[2], learning_rate, 'linear', inter16, share_state_layer=dense10)
         inter16.next_layers = [dense12]
         self.trainable_layers.append(dense12)
 
         flatten8 = FlattenPCNLayer(transformer6_layers[-1])
         transformer6_layers[-1].next_layers.append(flatten8)
-        inter17 = DensePCNLayer(100, learning_rate, 'linear', flatten8)
+        inter17 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten8)
         flatten8.next_layers = [inter17]
         self.trainable_layers.append(inter17)
-        dense15 = DensePCNLayer(185795, learning_rate, 'relu', inter17)
+        dense15 = DensePCNLayer(config.txt_dense_relu_widths[3], learning_rate, 'relu', inter17)
         inter17.next_layers = [dense15]
         self.trainable_layers.append(dense15)
-        inter18 = DensePCNLayer(100, learning_rate, 'linear', dense15)
+        inter18 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense15)
         dense15.next_layers = [inter18]
         self.trainable_layers.append(inter18)
-        dense16 = DensePCNLayer(702332, learning_rate, 'linear', inter18, share_state_layer=dense14)
+        dense16 = DensePCNLayer(config.shared_latent_dims[3], learning_rate, 'linear', inter18, share_state_layer=dense14)
         inter18.next_layers = [dense16]
         self.trainable_layers.append(dense16)
 
         flatten10 = FlattenPCNLayer(transformer3_layers[-1])
         transformer3_layers[-1].next_layers.append(flatten10)
-        inter19 = DensePCNLayer(100, learning_rate, 'linear', flatten10)
+        inter19 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten10)
         flatten10.next_layers = [inter19]
         self.trainable_layers.append(inter19)
-        dense19 = DensePCNLayer(373555, learning_rate, 'relu', inter19)
+        dense19 = DensePCNLayer(config.txt_dense_relu_widths[4], learning_rate, 'relu', inter19)
         inter19.next_layers = [dense19]
         self.trainable_layers.append(dense19)
-        inter20 = DensePCNLayer(100, learning_rate, 'linear', dense19)
+        inter20 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense19)
         dense19.next_layers = [inter20]
         self.trainable_layers.append(inter20)
-        dense20 = DensePCNLayer(1429912, learning_rate, 'linear', inter20, share_state_layer=dense18)
+        dense20 = DensePCNLayer(config.shared_latent_dims[4], learning_rate, 'linear', inter20, share_state_layer=dense18)
         inter20.next_layers = [dense20]
         self.trainable_layers.append(dense20)
 
