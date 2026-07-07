@@ -46,7 +46,7 @@ $SSH bash -s <<EOF
 set -e
 cd \$HOME/$REPO
 srun -p gpu --gres=gpu:$GPU:1 -c $CPUS --mem=$MEM -t $TIME -J $NAME \
-  bash -lc 'export PATH=\$HOME/tf-env/bin:\$PATH; export LD_LIBRARY_PATH=\$(echo \$HOME/tf-env/lib/python3.13/site-packages/nvidia/*/lib | tr " " ":"); cd \$HOME/$REPO; $RUN'
+  bash -lc 'export PATH=\$HOME/tf-env/bin:\$PATH; export LD_LIBRARY_PATH=\$(echo \$HOME/tf-env/lib/python3.13/site-packages/nvidia/*/lib | tr " " ":"); cd \$HOME/$REPO; export PYTHONPATH=\$HOME/$REPO:\${PYTHONPATH:-}; $RUN'
 EOF
 
 if [[ -n "$FETCH" ]]; then
