@@ -1,4 +1,4 @@
-import os, time, argparse
+import os, time, math, argparse
 import tensorflow as tf, numpy as np
 for g in tf.config.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(g, True)
@@ -33,8 +33,11 @@ def run_reference(steps=2, batch=1, seed=0):
 def compare(a, b, tol=1e-4):
     bad = []
     for k in a:
-        d = abs(a[k]-b.get(k, 0.0)) / (abs(a[k]) + 1e-9)
-        if d > tol: bad.append((k, a[k], b.get(k), d))
+        av = a[k]
+        bv = b.get(k, 0.0)
+        d = abs(av-bv) / (abs(av) + 1e-9)
+        if (not math.isfinite(av)) or (not math.isfinite(bv)) or (d > tol):
+            bad.append((k, av, bv, d))
     return bad
 
 if __name__ == "__main__":

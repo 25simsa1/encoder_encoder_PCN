@@ -4,6 +4,7 @@ GATE_MISMATCH (and exits nonzero on mismatch) so a cluster job can validate that
 an execution change did not alter the predictive-coding math. Pure numpy: no
 TensorFlow, no GPU, runs anywhere and fast."""
 import sys
+import math
 import numpy as np
 
 
@@ -15,7 +16,7 @@ def compare_npz(ref_path, cur_path, tol=1e-4):
         r = float(ref[k])
         c = float(cur[k]) if k in cur.files else 0.0
         d = abs(r - c) / (abs(r) + 1e-9)
-        if d > tol:
+        if (not math.isfinite(r)) or (not math.isfinite(c)) or (d > tol):
             bad.append((k, r, c, d))
     missing = [k for k in ref.files if k not in cur.files]
     extra = [k for k in cur.files if k not in ref.files]
