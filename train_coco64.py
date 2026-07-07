@@ -33,6 +33,8 @@ def main():
     ap.add_argument("--batch", type=int, default=8); ap.add_argument("--ckpt", default="ckpt_coco64")
     ap.add_argument("--energy-every", type=int, default=50); ap.add_argument("--resume", action="store_true")
     ap.add_argument("--state-clip", type=float, default=float("inf"))  # cap |state| after relaxation; inf = off
+    ap.add_argument("--weight-decay", type=float, default=0.0)
+    ap.add_argument("--trust-cap", type=float, default=float("inf"))
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -44,6 +46,12 @@ def main():
             if hasattr(L, "state_clip"):
                 L.state_clip = a.state_clip; nclip += 1
         print(f"state_clip = {a.state_clip} set on {nclip} layers", flush=True)
+    for L in m.trainable_layers:
+        if hasattr(L, "weight_decay"):
+            L.weight_decay = a.weight_decay
+        if hasattr(L, "trust_cap"):
+            L.trust_cap = a.trust_cap
+    print(f"weight_decay={a.weight_decay} trust_cap={a.trust_cap}", flush=True)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     # realize weights so they can be checkpointed
     b0 = slice(0, a.batch)

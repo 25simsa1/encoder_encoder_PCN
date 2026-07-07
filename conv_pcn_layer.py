@@ -28,6 +28,8 @@ class Conv2DPCNLayer:
         self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
         self.bias_lr = learning_rate    # kept for uniform driver setup (conv has no bias)
         self.state_clip = float('inf')  # max |state| element magnitude after relaxation; inf = off
+        self.weight_decay = 0.0            # LARS beta term; 0 = current beta-less behavior
+        self.trust_cap = float("inf")      # cap the trust ratio; inf = off
         self.kernel_size = kernel_size
         self.padding = padding
 
@@ -128,9 +130,12 @@ class Conv2DPCNLayer:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
                 # LARS / trust-ratio step: scale by ||w||/||g|| (norms over the full 4D kernel/grad)
                 g = (d_state + d_pred) / denom
-                trust = tf.norm(self.wts) / (tf.norm(g) + 1e-6)
+                wd = self.weight_decay
+                wn = tf.norm(self.wts)
+                trust = wn / (tf.norm(g) + wd * wn + 1e-6)
+                trust = tf.minimum(trust, self.trust_cap)
                 self.last_trust = trust  # exposed for logging only
-                self.wts.assign_sub(self.learning_rate * trust * g)
+                self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
 
     def update_b(self):
         pass # there is no bias

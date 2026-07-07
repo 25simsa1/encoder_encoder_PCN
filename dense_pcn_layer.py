@@ -29,6 +29,8 @@ class DensePCNLayer:
         self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
         self.bias_lr = learning_rate    # bias update rate (decoupled from weight lr)
         self.state_clip = float('inf')  # max |state| element magnitude after relaxation; inf = off
+        self.weight_decay = 0.0            # LARS beta term; 0 = current beta-less behavior
+        self.trust_cap = float("inf")      # cap the trust ratio; inf = off
         self.share_state_layer = share_state_layer
 
     def init_params(self, input_shape:tuple):
@@ -126,9 +128,12 @@ class DensePCNLayer:
                 # layer moves a comparable RELATIVE amount regardless of gradient magnitude.
                 denom = tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32)
                 g = (d_state + d_pred) / denom
-                trust = tf.norm(self.wts) / (tf.norm(g) + 1e-6)
+                wd = self.weight_decay
+                wn = tf.norm(self.wts)
+                trust = wn / (tf.norm(g) + wd * wn + 1e-6)
+                trust = tf.minimum(trust, self.trust_cap)
                 self.last_trust = trust  # exposed for logging only
-                self.wts.assign_sub(self.learning_rate * trust * g)
+                self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
