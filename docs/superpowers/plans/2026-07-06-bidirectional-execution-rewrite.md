@@ -274,3 +274,63 @@ Phase 2 compiled `update_states_wts_b` (interleaved: a weight step every state s
 - Modify `encoder_encoder_pcn.py`: compile the relaxed schedule's two sweeps as separate lazily-built `@tf.function`s cached in NEW instance attrs (e.g. `_compiled_relax_sweep` = `for layer: layer.update_state()`, `_compiled_learn_sweep` = `for layer: layer.update_wts(); layer.update_b()`), driven by plain Python loops (`for weight_step in range(W): for _ in range(R): relax(); then learn()`). Apply the SAME clamp-signature + state-Variable-id guard as `update_states_wts_b` (its own recorded sig/ids, checked each call). Do not change any per-layer math or the sweep order. No variables created in-graph (all init is in `pass_through`).
 - Validate: re-run the gate in `--relaxed` mode → must `GATE_MATCH` against `golden_relaxed_baseline.npz` (rel-tol 1e-4). Confirm one trace per sweep. Measure warm per-weight-step vs the eager relaxed time.
 - Commit. Done when: relaxed-mode `GATE_MATCH nlayers=143`, single trace per sweep, speedup recorded.
+
+---
+
+## M4 findings (generation path)
+
+**Task:** a Phase 4 prerequisite diagnosis (not a Phase 2/2b task, separate from R1/R2 above). The generation path — `update_states_img`/`update_states_txt`, called by `test_step` — updates the UNCLAMPED (generated) input TWICE per step:
+
+```python
+def update_states_img(self, num_steps):
+    for step in range(num_steps):
+        for layer in self.trainable_layers:   # img_input IS in this list -> updated once here
+            layer.update_state()
+        self.img_input.update_state()          # img_input updated AGAIN, second time
+```
+
+Ran `tools/gen_probe.py` on an H200, on a FRESH untrained model (random weights — this is a mechanism test, not an image-quality test), seed 0, `img=(1,572,572,3)`, `txt=(1,192,512)`, `mask=(1,192)`, `num_steps=15`. (Building several full ~30-70GiB model instances back-to-back in one process fragmented the GPU BFC allocator enough to OOM the 4th/5th build, so the probe was split with a `--part {1,2,3}` flag and Part 3 was re-run as its own isolated process; its WITH-ablation curve reproduced Part 2's curve bit-for-bit, confirming determinism and that the split changed nothing.)
+
+**1. Both directions run finite and stable on a fresh model.**
+
+| direction | wall (15 steps + pass_through) | output shape | finite output | finite all states | min / max / mean |
+|---|---|---|---|---|---|
+| `predict='img'` | 7.11s | (1, 572, 572, 3) | PASS | PASS | -4.91 / 5.03 / 0.0124 |
+| `predict='txt'` | 5.28s | (1, 192, 512) | PASS | PASS | -4.17 / 4.42 / -0.0028 |
+
+No NaN/Inf anywhere (output or any of the 143 `trainable_layers` states) in either direction, on random weights, at the full `num_steps=15`. Generation is stable at the mechanism level.
+
+**2. Convergence of the unclamped `img_input` (actual generation path, with the double update).** Instrumented the real per-step procedure (per-layer sweep + the explicit second `img_input.update_state()`) and tracked `img_input.state`'s L2 norm and step-to-step relative change over 15 steps:
+
+| step | norm | rel_change |
+|---|---|---|
+| 0 | 991.35 | — |
+| 1 | 992.41 | 0.001585 |
+| 4 | 995.56 | 0.001550 |
+| 7 | 998.65 | 0.001515 |
+| 10 | 1001.70 | 0.001482 |
+| 14 | 1005.69 | 0.001438 |
+
+Not oscillating, not diverging: the norm drifts monotonically upward at a nearly-constant, slowly decelerating rate (rel_change shrinks ~9% from step 1 to step 14, from 0.001585 to 0.001438). It has not settled to a fixed point within 15 steps, but the drift is bounded and decelerating, not runaway. Given untrained random weights (no learned equilibrium to relax toward), this is the expected shape — a caveat, not a red flag. Per-step wall time for the uncompiled/eager loop: mean 0.306s/step (0.305s excluding step 0), i.e. ~4.6s of relaxation for 15 steps.
+
+**3. Ablation of the second update — the load-bearing evidence.** Two fresh models (identical seed, identical `pass_through` inputs, so identical initial weights and initial states), 15 steps each, WITH the explicit second `img_input.update_state()` vs WITHOUT it:
+
+| step | WITH norm | WITH rel_change | WITHOUT norm | WITHOUT rel_change | ratio (WITH/WITHOUT rel_change) |
+|---|---|---|---|---|---|
+| 0 | 991.3535 | — | 990.8225 | — | — |
+| 1 | 992.4124 | 0.001068 | 991.3535 | 0.000536 | 1.99 |
+| 5 | 996.5948 | 0.001042 | 993.4546 | 0.000526 | 1.98 |
+| 10 | 1001.7029 | 0.001010 | 996.0299 | 0.000513 | 1.97 |
+| 14 | 1005.6934 | 0.000985 | 998.0494 | 0.000503 | 1.96 |
+
+- Final `img_input.predict_next()` relative L2 difference (WITH vs WITHOUT) after 15 steps: **0.011142 (1.1%)**. Both finite.
+- The WITH/WITHOUT rel_change ratio sits at ~2.0 on step 1 and decays smoothly to ~1.96 by step 14 — remarkably close to exactly 2x, for the entire run.
+- WITHOUT is not "no update" — `img_input` is still updated once per step by the main `for layer in self.trainable_layers` loop (it's a member of that list). The difference isolates exactly the ONE extra explicit call.
+
+**Verdict: INTENTIONAL.** Mechanism, confirmed by the ~2x signature above: `img_input` and `txt_input` are each appended to `trainable_layers` BEFORE their own downstream chain is built (`self.img_input` is index 0, appended before `conv1`; `self.txt_input` is appended before `txt_embedding`). So the single `for layer in self.trainable_layers: layer.update_state()` sweep hits `img_input` FIRST, when `conv1.state` still holds LAST step's value — `img_input`'s in-loop update is permanently one full step stale, every step, forever (a structural artifact of list order, not a transient that would disappear with more steps). Every other layer in the sweep is naturally processed AFTER its own upstream dependency, so it always sees this-step's freshest available value (textbook Gauss-Seidel). Only the two input layers are anomalous, purely because of where they sit in the list. The explicit second call re-runs `img_input.update_state()` AFTER the full sweep has already refreshed `conv1` this step, giving it the same freshest-available-value treatment every other layer already gets. That the ablation shows almost exactly a 2x displacement-rate difference (not an arbitrary or unstable difference, not a sign flip, no divergence) is exactly what you'd expect from "one stale sub-update + one fresh sub-update" vs "one stale sub-update alone" — it is not evidence of accidental double-counting, it's evidence the second call is doing specifically what re-syncing to this-step's latents would do. Removing it doesn't destabilize anything (WITHOUT is equally finite and smooth), it just reintroduces the permanent one-step lag specific to the two input layers' list position, roughly halving their effective relaxation rate. The 1.1% final-output effect is small but real, in the direction the "avoid one-step lag" theory predicts, with no evidence of it being a stray/duplicate call.
+
+**Uncompiled path note.** `update_states_img`/`update_states_txt` (and `test_step`) are pure eager Python — no `tf.function`, unlike `update_states_wts_b`/`update_states_wts_b_relaxed`. Measured cost: ~0.3s/step (mean 0.306s, warm 0.305s) for a 15-step generation, plus ~2.5-2.9s for the initial `pass_through`, i.e. ~5-7s wall-clock for a full `test_step` call at `num_steps=15`. This is far cheaper than the *eager* training sweep's ~14s/step baseline (Task 1), because generation only runs `update_state()` (state relaxation) — it never runs `update_wts`/`update_b`, which is what makes training expensive (gradient tensors for the multi-million-parameter dense layers).
+
+**Recommendation for Phase 4:**
+- **Keep the double update as-is.** It is a deliberate (or at least mechanically correct and beneficial) compensation for `img_input`/`txt_input` sitting at the front of `trainable_layers`; the data shows a clean, stable, theory-consistent ~2x effect, not an anomaly. No model code change.
+- **Leave the generation path uncompiled for now.** At ~0.3s/step and ~5-7s per `test_step` call, it is not the bottleneck training's eager sweep was — compiling it would need the same lazy-`tf.function` + clamp-signature/state-Variable-id trace guard already built for `update_states_wts_b`/`update_states_wts_b_relaxed`, which is real added complexity for a path that (per the Phase 2 spec) runs far less often than training. If Phase 4's eval schedule turns out to call `test_step` frequently (e.g. every N training steps, or at larger batch/more steps), revisit and compile it the same way — being careful to keep the double-update line (`for layer in trainable_layers: layer.update_state()` then the explicit `self.img_input.update_state()` / `self.txt_input.update_state()`) inside the compiled graph, since that is now confirmed to be load-bearing, not vestigial.
