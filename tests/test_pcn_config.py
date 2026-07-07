@@ -16,6 +16,7 @@ def test_native_reproduces_current_literals():
     assert c.txt_bridge_seq_lens == (48, 12, 3)
     assert c.txt_dense_relu_widths == (36864, 44237, 90931, 185795, 373555)
     assert c.txt_tap_indices == (-1, 12, 8, 5, 2)
+    assert c.conv_padding == 'VALID'
 
 def test_tap_indices():
     assert NATIVE_7B.txt_tap_indices == (-1, 12, 8, 5, 2)
@@ -38,3 +39,11 @@ def test_coco64_is_64px_and_smaller():
     # initial estimate (Task 4 tunes these); must be far smaller than native
     assert max(c.shared_latent_dims) <= max(NATIVE_7B.shared_latent_dims) // 10
     assert c.txt_seq_len == 32
+    assert c.conv_padding == 'SAME'
+
+
+def test_conv_padding_is_config_driven():
+    # native trunk keeps VALID (byte-identical); 64px path needs SAME so the 9
+    # convs preserve spatial size and only the 4 maxpools reduce 64->4.
+    assert NATIVE_7B.conv_padding == 'VALID'
+    assert COCO64_156M.conv_padding == 'SAME'

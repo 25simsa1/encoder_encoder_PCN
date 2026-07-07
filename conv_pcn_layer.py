@@ -12,8 +12,9 @@ class Conv2DPCNLayer:
     activation : str
     state : tf.Variable # tf.Tensor
     learning_rate:float
+    padding : str
 
-    def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None):
+    def __init__(self, num_units:int, kernel_size:tuple[int, int], learning_rate:float, activation:Literal['linear', 'relu']='linear', prev_layer:object=None, next_layers:list=None, padding:str='VALID'):
         self.is_clamped = False
         self.fix_wts_b = False
         self.num_units = num_units
@@ -28,6 +29,7 @@ class Conv2DPCNLayer:
         self.bias_lr = learning_rate    # kept for uniform driver setup (conv has no bias)
         self.state_clip = float('inf')  # max |state| element magnitude after relaxation; inf = off
         self.kernel_size = kernel_size
+        self.padding = padding
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -35,16 +37,25 @@ class Conv2DPCNLayer:
                             stddev=tf.cast(self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1])), tf.float32)), trainable=False)
     
     def predict_prev(self):
-        return tf.nn.conv2d_transpose(self.state, self.wts, padding='VALID', strides=1, output_shape=(self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2]))
+        # The decode transpose must reconstruct net_in's INPUT shape. Under VALID
+        # the forward conv shrank the map by (kernel-1), so the transpose expands
+        # it back by (kernel-1). Under SAME the forward conv preserved spatial
+        # size, so the SAME transpose must also preserve it (no +kernel-1), or the
+        # PC relaxation shapes mismatch.
+        if self.padding == 'SAME':
+            output_shape = (self.output_shape[0], self.output_shape[1], self.output_shape[2], self.wts.shape[-2])
+        else:
+            output_shape = (self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2])
+        return tf.nn.conv2d_transpose(self.state, self.wts, padding=self.padding, strides=1, output_shape=output_shape)
     
     def predict_next(self):
         return self.state
     
     def pred_loss_d_input(self, x:tf.Tensor):
         if self.activation == 'relu':
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=1, padding='VALID', output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
         else:
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.wts, strides=1, padding='VALID', output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
 
     def d_gelu(self, x:tf.Tensor):
         return 0.5*(1+tf.math.erf(x/tf.sqrt(2.))) + x/tf.sqrt(2*tf.acos(-1.))*tf.exp(-tf.square(x)/2)
@@ -79,12 +90,12 @@ class Conv2DPCNLayer:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
-                        self.wts, strides=1, padding="VALID")
+                        self.wts, strides=1, padding=self.padding)
                 else:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(layer.predict_next() - self.predict_prev()),
-                        self.wts, strides=1, padding="VALID")
+                        self.wts, strides=1, padding=self.padding)
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
@@ -104,15 +115,15 @@ class Conv2DPCNLayer:
                 pred = self(self.prev_layer.predict_next())
                 eps = pred - self.predict_next()
                 if self.activation == 'relu':
-                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_gelu(pred), strides=[1, 1, 1, 1], padding="VALID")
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_gelu(pred), strides=[1, 1, 1, 1], padding=self.padding)
                 else:
-                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps, strides=[1, 1, 1, 1], padding="VALID")
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps, strides=[1, 1, 1, 1], padding=self.padding)
             if not self.is_clamped:
                 pred = self.predict_prev()
                 if self.activation == 'relu':
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
                 else:
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding="VALID")
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
                 # LARS / trust-ratio step: scale by ||w||/||g|| (norms over the full 4D kernel/grad)
@@ -135,7 +146,7 @@ class Conv2DPCNLayer:
         if self.wts is None:
             self.init_params(x.shape)
 
-        return tf.nn.conv2d(x, self.wts, padding='VALID', strides=1)
+        return tf.nn.conv2d(x, self.wts, padding=self.padding, strides=1)
 
     def __call__(self, x : tf.Tensor, set_state:bool = False):
         net_in = self.net_in(x)
