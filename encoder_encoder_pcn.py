@@ -408,7 +408,7 @@ class EncoderEncoderPCN:
         else:
             if hasattr(layer, 'state'):
                 new_output = layer(prev_layer.predict_next(), set_state=True)
-                if mask is not None and isinstance(layer, DensePCNLayer) and (layer.num_units == 48 or layer.num_units == 12 or layer.num_units == 3):
+                if mask is not None and isinstance(layer, DensePCNLayer) and (layer.num_units in self.config.txt_bridge_seq_lens):
                     mask = tf.where(
                         (tf.cast(mask == 0, layer.wts.dtype) @ tf.abs(layer.wts)) == 0,
                         tf.constant(-1e9, dtype=layer.wts.dtype),
