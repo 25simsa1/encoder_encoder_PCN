@@ -15,6 +15,14 @@ def test_native_reproduces_current_literals():
     assert c.txt_heads == 8 and c.txt_sublayers == 3
     assert c.txt_bridge_seq_lens == (48, 12, 3)
     assert c.txt_dense_relu_widths == (36864, 44237, 90931, 185795, 373555)
+    assert c.txt_tap_indices == (-1, 12, 8, 5, 2)
+
+def test_tap_indices():
+    assert NATIVE_7B.txt_tap_indices == (-1, 12, 8, 5, 2)
+    assert COCO64_156M.txt_tap_indices == (-1, 4, 2, 1, 0)
+    # every COCO64 tap index must be valid for its trunk
+    n = sum(COCO64_156M.txt_group_blocks)          # 6
+    assert all(-n <= i < n for i in COCO64_156M.txt_tap_indices)
 
 def test_shared_dims_are_the_shared_contract():
     # the five shared-latent dims are what image dense2/6/10/14/18 and text

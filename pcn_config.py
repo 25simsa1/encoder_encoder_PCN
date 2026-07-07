@@ -16,6 +16,8 @@ class PCNConfig:
     txt_sublayers: int        # the first arg to TransformerPCNLayer
     txt_bridge_seq_lens: tuple     # linear_2/4/6 sequence reductions between groups
     txt_dense_relu_widths: tuple   # 5, text tap dense_relu (dense3/7/11/15/19)
+    txt_tap_indices: tuple    # 5, txt_transformers block index per tap
+                              # (dense3,dense7,dense11,dense15,dense19); -1 = final block
 
 NATIVE_7B = PCNConfig(
     name="native7b",
@@ -30,6 +32,7 @@ NATIVE_7B = PCNConfig(
     txt_heads=8, txt_sublayers=3,
     txt_bridge_seq_lens=(48, 12, 3),
     txt_dense_relu_widths=(36864, 44237, 90931, 185795, 373555),
+    txt_tap_indices=(-1, 12, 8, 5, 2),   # current attachments; -1 == block 16 for the 17-block trunk
 )
 
 # Initial estimate (~160M); Task 4 tunes to ~156M. Shared dims are an ~8x
@@ -48,4 +51,5 @@ COCO64_156M = PCNConfig(
     txt_heads=8, txt_sublayers=3,
     txt_bridge_seq_lens=(16, 8, 4),
     txt_dense_relu_widths=(2048, 4096, 8192, 8192, 8192),
+    txt_tap_indices=(-1, 4, 2, 1, 0),    # final, mid-group3, group2/1/0 ends for the 6-block 1+1+1+3 trunk
 )

@@ -311,18 +311,21 @@ class EncoderEncoderPCN:
                 linear_down.next_layers = [tp_down]
                 group_input = tp_down
 
-        # Text-tap attachment blocks, preserved verbatim from the hand-built
-        # NATIVE_7B trunk (only the tap WIDTHS below are config-driven). Four taps
-        # read a group's last block; dense7/8 reads transformer #13 (the 4th block
-        # of the final group), which is NOT a group boundary. These attachment
-        # indices are NATIVE-specific.
-        transformer3_layers = txt_transformers[2]    # group 0 last block
-        transformer6_layers = txt_transformers[5]    # group 1 last block
-        transformer9_layers = txt_transformers[8]    # group 2 last block
-        transformer13_layers = txt_transformers[12]  # group 3, block 4 (irregular tap)
+        # Text-tap attachment blocks, in tap order (dense3, dense7, dense11,
+        # dense15, dense19). The source block index for each tap is config-driven
+        # (config.txt_tap_indices) so trunks of different depth can both tap
+        # validly; only the tap SOURCE index and WIDTHS are config-driven. For
+        # NATIVE_7B these resolve to the hand-built (-1, 12, 8, 5, 2) attachments:
+        # the final block, then transformer #13 (4th block of the final group,
+        # NOT a group boundary), then the group-2/1/0 last blocks.
+        tap_dense3  = txt_transformers[config.txt_tap_indices[0]]
+        tap_dense7  = txt_transformers[config.txt_tap_indices[1]]
+        tap_dense11 = txt_transformers[config.txt_tap_indices[2]]
+        tap_dense15 = txt_transformers[config.txt_tap_indices[3]]
+        tap_dense19 = txt_transformers[config.txt_tap_indices[4]]
 
-        flatten2 = FlattenPCNLayer(self.trainable_layers[-1])
-        self.trainable_layers[-1].next_layers = [flatten2]
+        flatten2 = FlattenPCNLayer(tap_dense3[-1])
+        tap_dense3[-1].next_layers = [flatten2]
         inter11 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten2)
         flatten2.next_layers = [inter11]
         self.trainable_layers.append(inter11)
@@ -336,8 +339,8 @@ class EncoderEncoderPCN:
         inter12.next_layers = [dense4]
         self.trainable_layers.append(dense4)
 
-        flatten4 = FlattenPCNLayer(transformer13_layers[-1])
-        transformer13_layers[-1].next_layers.append(flatten4)
+        flatten4 = FlattenPCNLayer(tap_dense7[-1])
+        tap_dense7[-1].next_layers.append(flatten4)
         inter13 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten4)
         flatten4.next_layers = [inter13]
         self.trainable_layers.append(inter13)
@@ -351,8 +354,8 @@ class EncoderEncoderPCN:
         inter14.next_layers = [dense8]
         self.trainable_layers.append(dense8)
 
-        flatten6 = FlattenPCNLayer(transformer9_layers[-1])
-        transformer9_layers[-1].next_layers.append(flatten6)
+        flatten6 = FlattenPCNLayer(tap_dense11[-1])
+        tap_dense11[-1].next_layers.append(flatten6)
         inter15 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten6)
         flatten6.next_layers = [inter15]
         self.trainable_layers.append(inter15)
@@ -366,8 +369,8 @@ class EncoderEncoderPCN:
         inter16.next_layers = [dense12]
         self.trainable_layers.append(dense12)
 
-        flatten8 = FlattenPCNLayer(transformer6_layers[-1])
-        transformer6_layers[-1].next_layers.append(flatten8)
+        flatten8 = FlattenPCNLayer(tap_dense15[-1])
+        tap_dense15[-1].next_layers.append(flatten8)
         inter17 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten8)
         flatten8.next_layers = [inter17]
         self.trainable_layers.append(inter17)
@@ -381,8 +384,8 @@ class EncoderEncoderPCN:
         inter18.next_layers = [dense16]
         self.trainable_layers.append(dense16)
 
-        flatten10 = FlattenPCNLayer(transformer3_layers[-1])
-        transformer3_layers[-1].next_layers.append(flatten10)
+        flatten10 = FlattenPCNLayer(tap_dense19[-1])
+        tap_dense19[-1].next_layers.append(flatten10)
         inter19 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten10)
         flatten10.next_layers = [inter19]
         self.trainable_layers.append(inter19)
