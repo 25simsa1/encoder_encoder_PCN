@@ -12,7 +12,7 @@ def golden_state_signature(model):
             sig[i] = float(tf.norm(tf.cast(s, tf.float32)))
     return sig
 
-def run_reference(steps=2, batch=1, seed=0):
+def run_reference(steps=2, batch=1, seed=0, relaxed=False, relax_steps=5, weight_steps=2):
     tf.random.set_seed(seed)
     m = EncoderEncoderPCN(1e-4)
     img = tf.random.normal((batch, 572, 572, 3), seed=seed)
@@ -23,7 +23,10 @@ def run_reference(steps=2, batch=1, seed=0):
     try: tf.config.experimental.reset_memory_stats("GPU:0")
     except Exception: pass
     t = time.time()
-    m.update_states_wts_b(steps)
+    if relaxed:
+        m.update_states_wts_b_relaxed(weight_steps, relax_steps)
+    else:
+        m.update_states_wts_b(steps)
     dt = (time.time() - t) / max(1, steps)
     peak = 0.0
     try: peak = tf.config.experimental.get_memory_info("GPU:0")["peak"]/2**30
@@ -43,7 +46,10 @@ def compare(a, b, tol=1e-4):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--steps", type=int, default=2)
     ap.add_argument("--batch", type=int, default=1); ap.add_argument("--save", default="golden.npz")
+    ap.add_argument("--relaxed", action="store_true")
+    ap.add_argument("--relax-steps", type=int, default=5)
+    ap.add_argument("--weight-steps", type=int, default=2)
     a = ap.parse_args()
-    sig, peak, dt = run_reference(a.steps, a.batch)
+    sig, peak, dt = run_reference(a.steps, a.batch, relaxed=a.relaxed, relax_steps=a.relax_steps, weight_steps=a.weight_steps)
     np.savez(a.save, **{str(k): v for k, v in sig.items()})
-    print(f"GOLDEN steps={a.steps} batch={a.batch} peak={peak:.2f}GiB per_step={dt:.2f}s nlayers={len(sig)}", flush=True)
+    print(f"GOLDEN steps={a.steps} batch={a.batch} peak={peak:.2f}GiB per_step={dt:.2f}s nlayers={len(sig)} relaxed={a.relaxed} W={a.weight_steps} R={a.relax_steps}", flush=True)
