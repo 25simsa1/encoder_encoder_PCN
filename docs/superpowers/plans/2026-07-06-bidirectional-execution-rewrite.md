@@ -147,6 +147,36 @@ git commit -m "instrumented the memory growth over 10 steps to find whether it i
 
 ---
 
+## Task 3 findings
+
+**Verdict: TRANSIENT-ONLY. No retention leak.**
+
+Ran `tools/mem_probe.py` on an H200 (96G host mem), resetting `reset_memory_stats` before every step so `peak_this_step` reflects only that step's transient high-water mark, not a cumulative session peak. 10 single `update_states_wts_b(1)` steps after one `pass_through`:
+
+| point | cur (GiB) | peak_this_step (GiB) | tensors |
+|---|---|---|---|
+| after pass_through | 29.55 | 34.30 | 499 |
+| step 0 | 29.55 | 68.01 | 640 |
+| step 1 | 29.55 | 68.01 | 640 |
+| step 2 | 29.55 | 68.01 | 640 |
+| step 3 | 29.55 | 68.01 | 640 |
+| step 4 | 29.55 | 68.01 | 640 |
+| step 5 | 29.55 | 68.01 | 640 |
+| step 6 | 29.55 | 68.01 | 640 |
+| step 7 | 29.55 | 68.01 | 640 |
+| step 8 | 29.55 | 68.01 | 640 |
+| step 9 | 29.55 | 68.01 | 640 |
+
+`cur` is bit-identical (29.55G) across all 10 steps: delta 0.00 GiB, not just "under 0.5 GiB." `peak_this_step` is also bit-identical (68.01G) every step, meaning it's not creeping up run over run, it's the same-size transient every time. `tensors` jumps once from 499 (right after `pass_through`, before any weight update has run) to 640 at step 0, then stays flat at 640 for steps 1-9 — that one-time jump is Python object bookkeeping created by the first `update_states_wts_b` call (e.g. optimizer/gradient-tape scaffolding), not per-step accumulation.
+
+This resolves the ambiguity in the earlier 3-step profile: that run never reset `peak`, so it recorded the *cumulative session* high-water mark climbing 34.30G (after `pass_through`) -> 68.01G (after 3 steps). It looked like growth because the reported number was a running max, not a per-step reading. With the reset added here, the true per-step peak is 68.01G from step 0 onward — the weight-update pass reaches that high-water mark on its very first call and stays there, it never climbs further on later steps. There is no per-step retention: `cur` never rises, `tensors` never rises past the one-time step-0 jump.
+
+**Cause of the 68.01G transient:** the weight-update gradients for the billion-parameter dense projections (largest layer 2064.8M params) are large one-shot tensors — computed, applied via `.assign*`, then freed within the same step, so they show up in `peak` but not in `cur`. This is architecture-inherent at 572px resolution and is expected to shrink substantially once Phase 3 retargets the model to 64px.
+
+**Implication for Task 4:** no real fix is needed. There is no resident leak to chase. `cur` is already flat (in fact exactly flat, not just within tolerance) and `tensors` is bounded. Task 4 becomes a confirm-flat check rather than a fix: re-run `mem_probe.py` (or an equivalent flat-check) after Task 5/6's changes to make sure nothing introduced along the way (tf.function tracing, batching) breaks the flatness, and record that the 68G peak is the expected large-dense-gradient transient at 572px, deferring any peak reduction to the Phase 3 64px retarget.
+
+---
+
 ### Task 4: Fix the memory growth to flat-over-10-steps
 
 **Files:**
