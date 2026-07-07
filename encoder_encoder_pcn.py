@@ -3,6 +3,7 @@ from conv_pcn_layer import Conv2DPCNLayer, MaxPool2DPCNLayer
 from dense_pcn_layer import DensePCNLayer
 from transformer_pcn_layer import TransformerPCNLayer, PositionalEncodingLayer, AttentionPCNLayer, AddNormalizePCNLayer
 from typing import Literal
+from pcn_config import PCNConfig, NATIVE_7B
 class InputPCNLayer:
     is_clamped : tf.Variable # bool
     fix_wts_b : tf.Variable # bool
@@ -128,11 +129,13 @@ class FlattenPCNLayer:
 class EncoderEncoderPCN:
     trainable_layers : list
     learning_rate : float
+    config : PCNConfig
     img_input : object
     txt_input : object
-    def __init__(self, learning_rate : float):
+    def __init__(self, learning_rate : float, config : PCNConfig = NATIVE_7B):
         self.trainable_layers = []
         self.learning_rate = learning_rate
+        self.config = config
         # Lazily-built graph-compiled PC sweep (see update_states_wts_b) plus its
         # trace counter. The sweep is compiled once per clamp configuration; the
         # train path (update_states_wts_b) clamps BOTH inputs, so exactly one
@@ -151,114 +154,114 @@ class EncoderEncoderPCN:
         self._learn_sweep_trace_count = 0
         self.img_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.img_input)
-        conv1 = Conv2DPCNLayer(64, (3, 3), learning_rate, 'relu', self.img_input)
+        conv1 = Conv2DPCNLayer(config.conv_channels[0], (3, 3), learning_rate, 'relu', self.img_input)
         self.trainable_layers.append(conv1)
         self.img_input.next_layers = [conv1]
-        conv2 = Conv2DPCNLayer(64, (3, 3), learning_rate, 'relu', conv1)
+        conv2 = Conv2DPCNLayer(config.conv_channels[1], (3, 3), learning_rate, 'relu', conv1)
         self.trainable_layers.append(conv2)
         conv1.next_layers = [conv2]
         mp1 = MaxPool2DPCNLayer((2, 2), conv2)
         conv2.next_layers = [mp1]
-        conv3 = Conv2DPCNLayer(128, (3, 3), learning_rate, 'relu', mp1)
+        conv3 = Conv2DPCNLayer(config.conv_channels[2], (3, 3), learning_rate, 'relu', mp1)
         self.trainable_layers.append(conv3)
         mp1.next_layers = [conv3]
-        conv4 = Conv2DPCNLayer(128, (3, 3), learning_rate, 'relu', conv3)
+        conv4 = Conv2DPCNLayer(config.conv_channels[3], (3, 3), learning_rate, 'relu', conv3)
         self.trainable_layers.append(conv4)
         conv3.next_layers = [conv4]
         mp2 = MaxPool2DPCNLayer((2, 2), conv4)
         conv4.next_layers = [mp2]
-        conv5 = Conv2DPCNLayer(256, (3, 3), learning_rate, 'relu', mp2)
+        conv5 = Conv2DPCNLayer(config.conv_channels[4], (3, 3), learning_rate, 'relu', mp2)
         self.trainable_layers.append(conv5)
         mp2.next_layers = [conv5]
-        conv6 = Conv2DPCNLayer(256, (3, 3), learning_rate, 'relu', conv5)
+        conv6 = Conv2DPCNLayer(config.conv_channels[5], (3, 3), learning_rate, 'relu', conv5)
         self.trainable_layers.append(conv6)
         conv5.next_layers = [conv6]
         mp3 = MaxPool2DPCNLayer((2, 2), conv6)
         conv6.next_layers = [mp3]
-        conv7 = Conv2DPCNLayer(512, (3, 3), learning_rate, 'relu', mp3)
+        conv7 = Conv2DPCNLayer(config.conv_channels[6], (3, 3), learning_rate, 'relu', mp3)
         self.trainable_layers.append(conv7)
         mp3.next_layers = [conv7]
-        conv8 = Conv2DPCNLayer(512, (3, 3), learning_rate, 'relu', conv7)
+        conv8 = Conv2DPCNLayer(config.conv_channels[7], (3, 3), learning_rate, 'relu', conv7)
         self.trainable_layers.append(conv8)
         conv7.next_layers = [conv8]
         mp4 = MaxPool2DPCNLayer((2, 2), conv8)
         conv8.next_layers = [mp4]
-        conv9 = Conv2DPCNLayer(1024, (3, 3), learning_rate, 'relu', mp4)
+        conv9 = Conv2DPCNLayer(config.conv_channels[8], (3, 3), learning_rate, 'relu', mp4)
         self.trainable_layers.append(conv9)
         mp4.next_layers = [conv9]
 
         flatten1 = FlattenPCNLayer(conv9)
         conv9.next_layers = [flatten1]
-        inter1 = DensePCNLayer(100, learning_rate, 'linear', flatten1)
+        inter1 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten1)
         flatten1.next_layers = [inter1]
         self.trainable_layers.append(inter1)
-        dense1 = DensePCNLayer(307200, learning_rate, 'relu', inter1)
+        dense1 = DensePCNLayer(config.img_dense_relu_widths[0], learning_rate, 'relu', inter1)
         inter1.next_layers = [dense1]
         self.trainable_layers.append(dense1)
-        inter2 = DensePCNLayer(100, learning_rate, 'linear', dense1)
+        inter2 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense1)
         dense1.next_layers = [inter2]
         self.trainable_layers.append(inter2)
-        dense2 = DensePCNLayer(102400, learning_rate, 'linear', inter2)
+        dense2 = DensePCNLayer(config.shared_latent_dims[0], learning_rate, 'linear', inter2)
         inter2.next_layers = [dense2]
         self.trainable_layers.append(dense2)
 
         flatten3 = FlattenPCNLayer(conv8)
         conv8.next_layers.append(flatten3)
-        inter3 = DensePCNLayer(100, learning_rate, 'linear', flatten3)
+        inter3 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten3)
         flatten3.next_layers = [inter3]
         self.trainable_layers.append(inter3)
-        dense5 = DensePCNLayer(582542, learning_rate, 'relu', inter3)
+        dense5 = DensePCNLayer(config.img_dense_relu_widths[1], learning_rate, 'relu', inter3)
         inter3.next_layers = [dense5]
         self.trainable_layers.append(dense5)
-        inter4 = DensePCNLayer(100, learning_rate, 'linear', dense5)
+        inter4 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense5)
         dense5.next_layers = [inter4]
         self.trainable_layers.append(inter4)
-        dense6 = DensePCNLayer(161817, learning_rate, 'linear', inter4)
+        dense6 = DensePCNLayer(config.shared_latent_dims[1], learning_rate, 'linear', inter4)
         inter4.next_layers = [dense6]
         self.trainable_layers.append(dense6)
 
         flatten5 = FlattenPCNLayer(conv6)
         conv6.next_layers.append(flatten5)
-        inter5 = DensePCNLayer(100, learning_rate, 'linear', flatten5)
+        inter5 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten5)
         flatten5.next_layers = [inter5]
         self.trainable_layers.append(inter5)
-        dense9 = DensePCNLayer(1279723, learning_rate, 'relu', inter5)
+        dense9 = DensePCNLayer(config.img_dense_relu_widths[2], learning_rate, 'relu', inter5)
         inter5.next_layers = [dense9]
         self.trainable_layers.append(dense9)
-        inter6 = DensePCNLayer(100, learning_rate, 'linear', dense9)
+        inter6 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense9)
         dense9.next_layers = [inter6]
         self.trainable_layers.append(inter6)
-        dense10 = DensePCNLayer(345871, learning_rate, 'linear', inter6)
+        dense10 = DensePCNLayer(config.shared_latent_dims[2], learning_rate, 'linear', inter6)
         inter6.next_layers = [dense10]
         self.trainable_layers.append(dense10)
 
         flatten7 = FlattenPCNLayer(conv4)
         conv4.next_layers.append(flatten7)
-        inter7 = DensePCNLayer(100, learning_rate, 'linear', flatten7)
+        inter7 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten7)
         flatten7.next_layers = [inter7]
         self.trainable_layers.append(inter7)
-        dense13 = DensePCNLayer(2654815, learning_rate, 'relu', inter7)
+        dense13 = DensePCNLayer(config.img_dense_relu_widths[3], learning_rate, 'relu', inter7)
         inter7.next_layers = [dense13]
         self.trainable_layers.append(dense13)
-        inter8 = DensePCNLayer(100, learning_rate, 'linear', dense13)
+        inter8 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense13)
         dense13.next_layers = [inter8]
         self.trainable_layers.append(inter8)
-        dense14 = DensePCNLayer(702332, learning_rate, 'linear', inter8)
+        dense14 = DensePCNLayer(config.shared_latent_dims[3], learning_rate, 'linear', inter8)
         inter8.next_layers = [dense14]
         self.trainable_layers.append(dense14)
 
         flatten9 = FlattenPCNLayer(conv2)
         conv2.next_layers.append(flatten9)
-        inter9 = DensePCNLayer(100, learning_rate, 'linear', flatten9)
+        inter9 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', flatten9)
         flatten9.next_layers = [inter9]
         self.trainable_layers.append(inter9)
-        dense17 = DensePCNLayer(5433667, learning_rate, 'relu', inter9)
+        dense17 = DensePCNLayer(config.img_dense_relu_widths[4], learning_rate, 'relu', inter9)
         inter9.next_layers = [dense17]
         self.trainable_layers.append(dense17)
-        inter10 = DensePCNLayer(100, learning_rate, 'linear', dense17)
+        inter10 = DensePCNLayer(config.inter_dim, learning_rate, 'linear', dense17)
         dense17.next_layers = [inter10]
         self.trainable_layers.append(inter10)
-        dense18 = DensePCNLayer(1429912, learning_rate, 'linear', inter10)
+        dense18 = DensePCNLayer(config.shared_latent_dims[4], learning_rate, 'linear', inter10)
         inter10.next_layers = [dense18]
         self.trainable_layers.append(dense18)
 
