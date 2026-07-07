@@ -139,6 +139,16 @@ class EncoderEncoderPCN:
         # trace is expected across the whole run.
         self._compiled_sweep = None
         self._sweep_trace_count = 0
+        # Lazily-built graph-compiled sweeps for the relaxed (relax-then-step)
+        # schedule (see update_states_wts_b_relaxed). Two separate no-arg
+        # closures: one that only updates STATES (relax) and one that takes a
+        # single weight+bias step (learn). Each is compiled once per clamp
+        # configuration; the train path clamps BOTH inputs, so exactly one
+        # trace per sweep (2 total) is expected across the whole run.
+        self._compiled_relax_sweep = None
+        self._compiled_learn_sweep = None
+        self._relax_sweep_trace_count = 0
+        self._learn_sweep_trace_count = 0
         self.img_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.img_input)
         conv1 = Conv2DPCNLayer(64, (3, 3), learning_rate, 'relu', self.img_input)
@@ -537,15 +547,77 @@ class EncoderEncoderPCN:
         # weight/bias step from those relaxed states. This only re-sequences the
         # existing per-layer update methods; it does not change any per-layer
         # update_state / update_wts / update_b math.
-        for weight_step in range(num_weight_steps):
-            # RELAX: iterate ONLY state updates, weights fixed
-            for _ in range(num_relax_steps):
+        #
+        # Same graph-compile strategy as update_states_wts_b, but the relaxed
+        # schedule needs TWO distinct sweeps, so we compile each once and drive
+        # them from plain Python loops (num_weight_steps / num_relax_steps stay
+        # Python ints, NOT inside the graph):
+        #   - _compiled_relax_sweep: state-only pass, weights frozen.
+        #   - _compiled_learn_sweep: one weight + bias pass from relaxed states.
+        # Each tf.function unrolls its `for layer in self.trainable_layers` loop
+        # into one graph at first trace (slow once), after which every sweep is a
+        # single fast graph execution. The per-layer math and the relax-then-step
+        # order are untouched, so the relaxed states match the eager golden.
+        #
+        # No variables are created inside either graph: lazy tf.Variable init
+        # (wts/b, state, and share_state_layer aliasing) all happens in
+        # pass_through, which runs before this. The clamp flags are Python bools,
+        # so per-layer branches (is_clamped / activation / prev_layer) bake at
+        # TRACE time; this method is only used with both inputs clamped, hence a
+        # single trace per sweep.
+        if self._compiled_relax_sweep is None or self._compiled_learn_sweep is None:
+            @tf.function(reduce_retracing=True)
+            def _relax_sweep():
+                # Python side effect: runs only while TRACING, so it counts traces.
+                self._relax_sweep_trace_count += 1
+                print(f"[tf.function] tracing compiled relax sweep "
+                      f"(trace #{self._relax_sweep_trace_count})", flush=True)
                 for layer in self.trainable_layers:
                     layer.update_state()
+
+            @tf.function(reduce_retracing=True)
+            def _learn_sweep():
+                # Python side effect: runs only while TRACING, so it counts traces.
+                self._learn_sweep_trace_count += 1
+                print(f"[tf.function] tracing compiled learn sweep "
+                      f"(trace #{self._learn_sweep_trace_count})", flush=True)
+                for layer in self.trainable_layers:
+                    layer.update_wts()
+                    layer.update_b()
+            self._compiled_relax_sweep = _relax_sweep
+            self._compiled_learn_sweep = _learn_sweep
+            # Guard state recorded once at build time: both graphs are traced
+            # under the same clamp config and capture these exact state
+            # tf.Variable objects by reference. Record both so a later call with
+            # a different clamp config, or with any layer's .state rebuilt (reset
+            # to None then re-created in pass_through), is caught below instead of
+            # silently mutating stale Variables. One record covers both sweeps.
+            self._relaxed_clamp_sig = tuple(bool(L.is_clamped) for L in self.trainable_layers)
+            self._relaxed_state_ids = tuple(id(getattr(L, "state", None)) for L in self.trainable_layers)
+        # Cheap eager-Python check, outside the tf.functions (does not enter the
+        # graphs, negligible cost, no numerical effect). Catches reuse of this
+        # same model instance under a different clamp configuration or after any
+        # layer's state Variable was re-created.
+        cur_clamp_sig = tuple(bool(L.is_clamped) for L in self.trainable_layers)
+        cur_state_ids = tuple(id(getattr(L, "state", None)) for L in self.trainable_layers)
+        if cur_clamp_sig != self._relaxed_clamp_sig or cur_state_ids != self._relaxed_state_ids:
+            raise RuntimeError(
+                "update_states_wts_b_relaxed: the compiled relax/learn sweeps "
+                "were traced under a different clamp configuration or state "
+                "Variables than the current call (either is_clamped changed on "
+                "a layer, or a layer's .state was reset/rebuilt since the first "
+                "trace). The cached tf.functions would silently keep mutating "
+                "the stale Variables they captured at trace time. Rebuild the "
+                "model or reset self._compiled_relax_sweep / "
+                "self._compiled_learn_sweep (and the recorded _relaxed_clamp_sig "
+                "/ _relaxed_state_ids) before calling this again."
+            )
+        for weight_step in range(int(num_weight_steps)):
+            # RELAX: iterate ONLY state updates, weights fixed
+            for _ in range(int(num_relax_steps)):
+                self._compiled_relax_sweep()
             # LEARN: one weight + bias step using the relaxed states
-            for layer in self.trainable_layers:
-                layer.update_wts()
-                layer.update_b()
+            self._compiled_learn_sweep()
 
 
     def train_step(self, num_steps:int, img_tensor:tf.Tensor, txt_tensor:tf.Tensor, mask:tf.Tensor=None):
