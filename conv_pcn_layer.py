@@ -56,12 +56,20 @@ class Conv2DPCNLayer:
     def pred_loss_d_input(self, x:tf.Tensor):
         if self.activation == 'relu':
             return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
+        elif self.activation == 'gelu':
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
+        elif self.activation == 'silu':
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_silu(self.net_in(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
         else:
             return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.wts, strides=1, padding=self.padding, output_shape=x.shape)
 
     def d_gelu(self, x:tf.Tensor):
         return 0.5*(1+tf.math.erf(x/tf.sqrt(2.))) + x/tf.sqrt(2*tf.acos(-1.))*tf.exp(-tf.square(x)/2)
-    
+
+    def d_silu(self, x:tf.Tensor):
+        s = tf.sigmoid(x)
+        return s * (1.0 + x * (1.0 - s))     # derivative of silu(x)=x*sigmoid(x)
+
     # 1/2*(next-pred)^2
     # => 
     def update_state(self):
@@ -79,6 +87,12 @@ class Conv2DPCNLayer:
                 if layer.activation == 'relu':
                     state = tf.nn.relu(state)
                     pred_state = tf.nn.relu(pred_state)
+                elif layer.activation == 'gelu':
+                    state = tf.nn.gelu(state)
+                    pred_state = tf.nn.gelu(pred_state)
+                elif layer.activation == 'silu':
+                    state = tf.nn.silu(state)
+                    pred_state = tf.nn.silu(pred_state)
                 average_d_pred += tf.cast(layer.pred_loss_d_input(self.predict_next()), tf.float32)
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
@@ -93,6 +107,12 @@ class Conv2DPCNLayer:
                     d_pred += tf.nn.conv2d(
                         -multiplier*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
                         self.wts, strides=1, padding=self.padding)
+                elif self.activation == 'gelu':
+                    multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.gelu(layer.predict_next()) - tf.nn.gelu(self.predict_prev())), self.wts, strides=1, padding=self.padding)
+                elif self.activation == 'silu':
+                    multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.silu(layer.predict_next()) - tf.nn.silu(self.predict_prev())), self.wts, strides=1, padding=self.padding)
                 else:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
@@ -118,12 +138,20 @@ class Conv2DPCNLayer:
                 eps = pred - self.predict_next()
                 if self.activation == 'relu':
                     d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_gelu(pred), strides=[1, 1, 1, 1], padding=self.padding)
+                elif self.activation == 'gelu':
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_gelu(pred), strides=[1, 1, 1, 1], padding=self.padding)
+                elif self.activation == 'silu':
+                    d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps*self.d_silu(pred), strides=[1, 1, 1, 1], padding=self.padding)
                 else:
                     d_state += tf.raw_ops.Conv2DBackpropFilter(input=self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=eps, strides=[1, 1, 1, 1], padding=self.padding)
             if not self.is_clamped:
                 pred = self.predict_prev()
                 if self.activation == 'relu':
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
+                elif self.activation == 'gelu':
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.gelu(pred)-tf.nn.gelu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
+                elif self.activation == 'silu':
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.silu(pred)-tf.nn.silu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
                 else:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, 1, 1, 1], padding=self.padding)
             if not self.is_clamped or not self.prev_layer.is_clamped:
@@ -158,6 +186,10 @@ class Conv2DPCNLayer:
 
         if self.activation == 'relu':
             net_act = tf.nn.relu(net_in)
+        elif self.activation == 'gelu':
+            net_act = tf.nn.gelu(net_in)
+        elif self.activation == 'silu':
+            net_act = tf.nn.silu(net_in)
         else:
             net_act = net_in
 

@@ -6,6 +6,7 @@ import tensorflow as tf, numpy as np
 for g in tf.config.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(g, True)
 from encoder_encoder_pcn import EncoderEncoderPCN
+from conv_pcn_layer import Conv2DPCNLayer
 from pcn_config import COCO64_156M
 import coco64_data as D
 
@@ -35,6 +36,7 @@ def main():
     ap.add_argument("--state-clip", type=float, default=float("inf"))  # cap |state| after relaxation; inf = off
     ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--trust-cap", type=float, default=float("inf"))
+    ap.add_argument("--conv-activation", default="relu")
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -46,6 +48,12 @@ def main():
             if hasattr(L, "state_clip"):
                 L.state_clip = a.state_clip; nclip += 1
         print(f"state_clip = {a.state_clip} set on {nclip} layers", flush=True)
+    if a.conv_activation != "relu":
+        nc = 0
+        for L in m.trainable_layers:
+            if isinstance(L, Conv2DPCNLayer):
+                L.activation = a.conv_activation; nc += 1
+        print(f"conv_activation={a.conv_activation} set on {nc} conv layers", flush=True)
     for L in m.trainable_layers:
         if hasattr(L, "weight_decay"):
             L.weight_decay = a.weight_decay
