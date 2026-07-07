@@ -37,16 +37,18 @@ NATIVE_7B = PCNConfig(
     conv_padding='VALID',                # native trunk sized for 572px; VALID keeps byte-identical behavior
 )
 
-# Initial estimate (~160M); Task 4 tunes to ~156M. Shared dims are an ~8x
-# compression of each 64px tap feature map, keeping the native ordering
-# (bigger latent for the shallow high-res taps).
+# Task 4: measured 107.3M at the initial widths below (3x too small), so
+# img_dense_relu_widths and shared_latent_dims are scaled by 3x from the
+# original doubling series (2048,4096,8192,16384,32768) to land near 156M.
+# Shared dims stay an ~8x compression of each 64px tap feature map, keeping
+# the native ordering (bigger latent for the shallow high-res taps).
 COCO64_156M = PCNConfig(
     name="coco64",
     img_resolution=64,
     conv_channels=(64, 64, 128, 128, 256, 256, 512, 512, 1024),
     inter_dim=100,
-    img_dense_relu_widths=(2048, 4096, 8192, 16384, 32768),
-    shared_latent_dims=(2048, 4096, 8192, 16384, 32768),
+    img_dense_relu_widths=(6144, 12288, 24576, 49152, 98304),
+    shared_latent_dims=(6144, 12288, 24576, 49152, 98304),
     txt_seq_len=32, txt_embed_dim=512,
     txt_group_widths=(512, 512, 512, 512),
     txt_group_blocks=(1, 1, 1, 3),

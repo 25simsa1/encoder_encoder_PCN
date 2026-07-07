@@ -3,6 +3,9 @@ import tensorflow as tf, numpy as np
 for g in tf.config.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(g, True)
 from encoder_encoder_pcn import EncoderEncoderPCN
+from pcn_config import NATIVE_7B, COCO64_156M
+
+CFG = {"native7b": NATIVE_7B, "coco64": COCO64_156M}
 
 def golden_state_signature(model):
     sig = {}
@@ -33,21 +36,23 @@ def max_cross_example_dev(model):
             worst = max(worst, d)
     return worst
 
-def run_reference(steps=2, batch=1, seed=0, relaxed=False, relax_steps=5, weight_steps=2, dup_batch=0):
+def run_reference(steps=2, batch=1, seed=0, relaxed=False, relax_steps=5, weight_steps=2, dup_batch=0, config_name="native7b"):
     tf.random.set_seed(seed)
-    m = EncoderEncoderPCN(1e-4)
+    cfg = CFG[config_name]
+    r, sl, ed = cfg.img_resolution, cfg.txt_seq_len, cfg.txt_embed_dim
+    m = EncoderEncoderPCN(1e-4, config=cfg)
     if dup_batch > 0:
-        img1 = tf.random.normal((1, 572, 572, 3), seed=seed)
-        txt1 = tf.random.normal((1, 192, 512), seed=seed)
-        mask1 = tf.zeros((1, 192), tf.float32)
+        img1 = tf.random.normal((1, r, r, 3), seed=seed)
+        txt1 = tf.random.normal((1, sl, ed), seed=seed)
+        mask1 = tf.zeros((1, sl), tf.float32)
         img = tf.tile(img1, [dup_batch, 1, 1, 1])
         txt = tf.tile(txt1, [dup_batch, 1, 1])
         mask = tf.tile(mask1, [dup_batch, 1])
         batch = dup_batch
     else:
-        img = tf.random.normal((batch, 572, 572, 3), seed=seed)
-        txt = tf.random.normal((batch, 192, 512), seed=seed)
-        mask = tf.zeros((batch, 192), tf.float32)
+        img = tf.random.normal((batch, r, r, 3), seed=seed)
+        txt = tf.random.normal((batch, sl, ed), seed=seed)
+        mask = tf.zeros((batch, sl), tf.float32)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     m.pass_through(img, txt, mask)
     try: tf.config.experimental.reset_memory_stats("GPU:0")
@@ -86,8 +91,9 @@ if __name__ == "__main__":
     ap.add_argument("--relax-steps", type=int, default=5)
     ap.add_argument("--weight-steps", type=int, default=2)
     ap.add_argument("--dup-batch", type=int, default=0)
+    ap.add_argument("--config", choices=["native7b", "coco64"], default="native7b")
     a = ap.parse_args()
-    sig, peak, dt, ok = run_reference(a.steps, a.batch, relaxed=a.relaxed, relax_steps=a.relax_steps, weight_steps=a.weight_steps, dup_batch=a.dup_batch)
+    sig, peak, dt, ok = run_reference(a.steps, a.batch, relaxed=a.relaxed, relax_steps=a.relax_steps, weight_steps=a.weight_steps, dup_batch=a.dup_batch, config_name=a.config)
     np.savez(a.save, **{str(k): v for k, v in sig.items()})
     print(f"GOLDEN steps={a.steps} batch={a.batch} peak={peak:.2f}GiB per_step={dt:.2f}s nlayers={len(sig)} relaxed={a.relaxed} W={a.weight_steps} R={a.relax_steps} dup_batch={a.dup_batch}", flush=True)
     if a.dup_batch > 0 and not ok:
