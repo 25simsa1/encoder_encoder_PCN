@@ -371,3 +371,61 @@ A config-driven `EncoderEncoderPCN` where `NATIVE_7B` reproduces the 7.7B model 
 - Spec coverage: Section 1 (config-driven constructor) = Tasks 1-3; Section 2 (64px width scheme + initial config) = Task 1's `COCO64_156M` + Task 4 tuning; Section 3 (conv depth kept) = `conv_channels` unchanged in `COCO64_156M` (Task 1 test asserts it); Section 4 (validation: NATIVE_7B GATE_MATCH, COCO64 instantiate/param-count/finite/aliasing/generate) = Tasks 2,3 (GATE_MATCH), 4 (param count), 5 (finite/aliasing/generate); Section 5 (scope) = exit criteria + each task's non-goals. No gaps.
 - Placeholder scan: Tasks 2-3 describe a mechanical literal->config substitution rather than showing all ~330 refactored lines — this is intentional and honest for a large order-preserving refactor, and each is anchored by an exact GATE_MATCH command, not prose. The field-mapping is concrete (which literals map to which config fields). All other tasks have complete code and exact commands.
 - Type consistency: `PCNConfig` field names used in Tasks 2-5 (`img_resolution`, `conv_channels`, `inter_dim`, `img_dense_relu_widths`, `shared_latent_dims`, `txt_seq_len`, `txt_embed_dim`, `txt_group_widths`, `txt_group_blocks`, `txt_heads`, `txt_sublayers`, `txt_bridge_seq_lens`, `txt_dense_relu_widths`) match the dataclass and both instances in Task 1. `EncoderEncoderPCN(learning_rate, config=...)` signature is consistent across Tasks 2-5. `--config {native7b,coco64}` naming consistent in Task 4.
+
+---
+
+### Task 3b: generalize text tap attachment to config (inserted 2026-07-07 per the Task 3 finding)
+
+Task 3's review confirmed the five text tap attachment points are hardcoded to NATIVE_7B's 17-block trunk (`txt_transformers[12/8/5/2]` plus the final block), so COCO64's 6-block trunk cannot build (`[12]` is out of range). Make the tap points a config field so both trunks work.
+
+**Files:** Modify `encoder_encoder_pcn.py` (the five text tap attachments), `pcn_config.py` (add `txt_tap_indices`), `tests/test_pcn_config.py` (assert it).
+
+**Interfaces:** Produces `config.txt_tap_indices` (5-tuple of transformer-block indices, tap order dense3,dense7,dense11,dense15,dense19; `-1` allowed for the final block).
+
+- [ ] **Step 1:** Add `txt_tap_indices: tuple` to `PCNConfig`. Set `NATIVE_7B.txt_tap_indices = (-1, 12, 8, 5, 2)` (dense3=final block, dense7=idx12, dense11=idx8, dense15=idx5, dense19=idx2 — the current attachments; `-1` == 16 for the 17-block trunk). Set `COCO64_156M.txt_tap_indices = (-1, 4, 2, 1, 0)` (final, mid-group3, group2-end, group1-end, group0-end for the 6-block trunk). Extend `tests/test_pcn_config.py` to assert both, and that every COCO64 index is valid for its `sum(txt_group_blocks)`-block trunk (i.e. `-6 <= idx < 6`). Run the local pytest (pure python).
+
+- [ ] **Step 2:** Refactor the five tap attachments in `encoder_encoder_pcn.py` to read `txt_transformers[config.txt_tap_indices[k]][-1]` uniformly (the first tap currently uses `self.trainable_layers[-1]`; switch it to `txt_transformers[config.txt_tap_indices[0]][-1]`, which for NATIVE_7B is the same final block). Preserve the `flatten` assignment-vs-append idiom, the inter/dense_relu/dense_shared chain, and the `share_state_layer=` pairing exactly. Only the source of the tapped layer changes.
+
+- [ ] **Step 3 (gate 1, NATIVE unchanged):** `tools/clusterrun.sh --name p3_tap_gate --gpu H200 --mem 96G --cpus 4 --time 00:30:00 --sync "encoder_encoder_pcn.py pcn_config.py tools/rewrite_gate.py tools/gate_compare.py" --run "python3 tools/rewrite_gate.py --steps 2 --save golden_tap.npz && python3 tools/gate_compare.py golden_baseline.npz golden_tap.npz"` → expect `GATE_MATCH nlayers=143`.
+
+- [ ] **Step 4 (gate 2, COCO64 builds):** `tools/clusterrun.sh --name p3_coco_build --gpu H200 --mem 32G --cpus 4 --time 00:15:00 --sync "encoder_encoder_pcn.py pcn_config.py tools/count_params.py" --run "python3 tools/count_params.py --config coco64"` → expect a `TOTAL_PARAMS=...` line with NO IndexError/shape error (proves COCO64's tap indices are valid and it instantiates + pass_through runs). (`tools/count_params.py` is created in Task 4; if not present yet, use a one-line inline instantiate+pass_through of `EncoderEncoderPCN(1e-4, config=COCO64_156M)` at 64px instead.)
+
+- [ ] **Step 5:** Commit `encoder_encoder_pcn.py pcn_config.py tests/test_pcn_config.py` (first-person student, no AI attribution).
+
+---
+
+### Task 3c: config-driven conv padding (inserted 2026-07-07 per the Task 3b finding)
+
+Task 3b surfaced that `Conv2DPCNLayer` hardcodes `padding='VALID'` in every conv op. VALID shrinks each feature map by (kernel-1), so the 9-conv trunk collapses a 64px input to spatial size 0 by conv8. Make padding config-driven: NATIVE_7B keeps VALID (byte-identical, GATE_MATCH), COCO64_156M uses SAME (convs preserve spatial size; only the four maxpools reduce 64->32->16->8->4). This is the standard VGG choice and the minimal fix that keeps all 9 convs + 4 pools + 5 taps.
+
+**Files:** Modify `conv_pcn_layer.py` (thread a padding attribute through all conv ops), `pcn_config.py` (add `conv_padding`), `encoder_encoder_pcn.py` (pass `config.conv_padding` to each `Conv2DPCNLayer`), `tests/test_pcn_config.py` (assert `conv_padding`).
+
+**Interfaces:** `Conv2DPCNLayer(..., padding='VALID')`; `config.conv_padding` in {'VALID','SAME'}.
+
+- [ ] **Step 1 (config, local):** Add `conv_padding: str` to `PCNConfig`; `NATIVE_7B.conv_padding='VALID'`, `COCO64_156M.conv_padding='SAME'`. Extend `tests/test_pcn_config.py` (`assert NATIVE_7B.conv_padding=='VALID'` and `COCO64_156M.conv_padding=='SAME'`). Run local pytest.
+
+- [ ] **Step 2 (layer):** In `conv_pcn_layer.py`, add `padding:str='VALID'` to `Conv2DPCNLayer.__init__` (store `self.padding`; default VALID for back-compat). Replace the hardcoded `'VALID'` / `padding="VALID"` in `net_in` (L138), `update_state`'s prev-layer `conv2d` (L82/L87), and `update_wts`'s four `Conv2DBackpropFilter` calls (L107/109/113/115) with `self.padding`. In `predict_prev` (L38) and `pred_loss_d_input` (L45/47) use `padding=self.padding`; and make `predict_prev`'s `output_shape` padding-aware: for VALID keep `(out[0], out[1]+k[0]-1, out[2]+k[1]-1, wts[-2])`; for SAME use `(out[0], out[1], out[2], wts[-2])` (SAME transpose preserves spatial size). `pred_loss_d_input` already passes `output_shape=x.shape`, correct for both.
+
+- [ ] **Step 3 (model):** In `encoder_encoder_pcn.py`, pass `padding=config.conv_padding` to all nine `Conv2DPCNLayer(...)` constructions (conv1..conv9). No other change.
+
+- [ ] **Step 4 (gate 1, NATIVE unchanged):** `tools/clusterrun.sh --name p3_pad_gate --gpu H200 --mem 96G --cpus 4 --time 00:30:00 --sync "encoder_encoder_pcn.py pcn_config.py conv_pcn_layer.py tools/rewrite_gate.py tools/gate_compare.py" --run "python3 tools/rewrite_gate.py --steps 2 --save golden_pad.npz && python3 tools/gate_compare.py golden_baseline.npz golden_pad.npz"` -> expect `GATE_MATCH nlayers=143` (NATIVE uses VALID, so byte-identical).
+
+- [ ] **Step 5 (gate 2, COCO64 forward + relaxed step finite):** `tools/clusterrun.sh --name p3_coco_fwd --gpu H200 --mem 48G --cpus 4 --time 00:20:00 --sync "encoder_encoder_pcn.py pcn_config.py conv_pcn_layer.py" --run "python3 -c \"import tensorflow as tf; from encoder_encoder_pcn import EncoderEncoderPCN; from pcn_config import COCO64_156M as C; m=EncoderEncoderPCN(1e-4, config=C); r=C.img_resolution; m.img_input.is_clamped=True; m.txt_input.is_clamped=True; m.pass_through(tf.zeros((1,r,r,3)), tf.zeros((1,C.txt_seq_len,C.txt_embed_dim)), tf.zeros((1,C.txt_seq_len))); m.update_states_wts_b_relaxed(1,2); bad=[i for i,L in enumerate(m.trainable_layers) if getattr(L,'state',None) is not None and (bool(tf.reduce_any(tf.math.is_nan(L.state))) or bool(tf.reduce_any(tf.math.is_inf(L.state))))]; print('COCO64_FWD_OK nonfinite=',bad,'nlayers=',len(m.trainable_layers))\""` -> expect `COCO64_FWD_OK nonfinite=[] nlayers=143` (proves SAME padding makes the 64px image path forward + relax with consistent shapes and finite states). If it errors on a shape or produces nonfinite, report it.
+
+- [ ] **Step 6:** Commit `conv_pcn_layer.py pcn_config.py encoder_encoder_pcn.py tests/test_pcn_config.py` (first-person student, no AI attribution).
+
+---
+
+### Task 3d: config-driven attention-mask reduction (inserted 2026-07-07 per the Task 3c finding)
+
+Task 3c got the COCO64 image path forward-passing, then hit a text-path crash: the attention-mask reduction in `pass_next` (`encoder_encoder_pcn.py:411`) only fires when a bridge `DensePCNLayer.num_units` is 48/12/3 (NATIVE's `txt_bridge_seq_lens`). COCO64's bridges are (16,8,4), so the mask is never reduced and stays length-32 while the reduced-sequence attention runs, causing a broadcast crash at `transformer_pcn_layer.py:34`. One-line fix: match against the config.
+
+**Files:** Modify `encoder_encoder_pcn.py` (line ~411).
+
+- [ ] **Step 1:** Change the mask-reduction condition from `(layer.num_units == 48 or layer.num_units == 12 or layer.num_units == 3)` to `(layer.num_units in self.config.txt_bridge_seq_lens)`. (`self.config` exists from Task 2; for NATIVE_7B `txt_bridge_seq_lens == (48,12,3)`, so behavior is byte-identical.) Nothing else changes.
+
+- [ ] **Step 2 (gate 1, NATIVE unchanged):** `tools/clusterrun.sh --name p3_mask_gate --gpu H200 --mem 96G --cpus 4 --time 00:30:00 --sync "encoder_encoder_pcn.py pcn_config.py tools/rewrite_gate.py tools/gate_compare.py" --run "python3 tools/rewrite_gate.py --steps 2 --save golden_mask.npz && python3 tools/gate_compare.py golden_baseline.npz golden_mask.npz"` -> expect `GATE_MATCH nlayers=143`.
+
+- [ ] **Step 3 (gate 2, COCO64 end-to-end forward + relaxed step finite):** `tools/clusterrun.sh --name p3_coco_e2e --gpu H200 --mem 48G --cpus 4 --time 00:20:00 --sync "encoder_encoder_pcn.py pcn_config.py conv_pcn_layer.py" --run "python3 -c \"import tensorflow as tf; from encoder_encoder_pcn import EncoderEncoderPCN; from pcn_config import COCO64_156M as C; m=EncoderEncoderPCN(1e-4, config=C); r=C.img_resolution; m.img_input.is_clamped=True; m.txt_input.is_clamped=True; m.pass_through(tf.zeros((1,r,r,3)), tf.zeros((1,C.txt_seq_len,C.txt_embed_dim)), tf.zeros((1,C.txt_seq_len))); m.update_states_wts_b_relaxed(1,2); bad=[i for i,L in enumerate(m.trainable_layers) if getattr(L,'state',None) is not None and (bool(tf.reduce_any(tf.math.is_nan(L.state))) or bool(tf.reduce_any(tf.math.is_inf(L.state))))]; print('COCO64_E2E_OK nonfinite=',bad,'nlayers=',len(m.trainable_layers))\""` -> expect `COCO64_E2E_OK nonfinite=[] nlayers=<~100>` (COCO64's smaller text trunk gives fewer layers than NATIVE's 143 — that is expected, the point is the full forward + relax completes with finite states and NO shape/broadcast error). If another NATIVE-hardcoded assumption surfaces, report it (BLOCKED) so a follow-up task can address it.
+
+- [ ] **Step 4:** Commit `encoder_encoder_pcn.py` (first-person student, no AI attribution).
