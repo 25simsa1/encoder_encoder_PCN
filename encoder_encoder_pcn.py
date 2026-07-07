@@ -502,6 +502,32 @@ class EncoderEncoderPCN:
                     layer.update_wts()
                     layer.update_b()
             self._compiled_sweep = _sweep
+            # Guard state recorded at trace time: the graph above baked in the
+            # per-layer is_clamped branches and captured these exact state
+            # tf.Variable objects by reference. Record both so a later call
+            # with a different clamp config, or with any layer's .state
+            # rebuilt (reset to None then re-created in pass_through), is
+            # caught below instead of silently mutating stale Variables.
+            self._sweep_clamp_sig = tuple(bool(L.is_clamped) for L in self.trainable_layers)
+            self._sweep_state_ids = tuple(id(getattr(L, "state", None)) for L in self.trainable_layers)
+        # Cheap eager-Python check, outside the tf.function (does not enter
+        # the graph, negligible cost, no numerical effect). Catches reuse of
+        # this same model instance under a different clamp configuration or
+        # after any layer's state Variable was re-created.
+        cur_clamp_sig = tuple(bool(L.is_clamped) for L in self.trainable_layers)
+        cur_state_ids = tuple(id(getattr(L, "state", None)) for L in self.trainable_layers)
+        if cur_clamp_sig != self._sweep_clamp_sig or cur_state_ids != self._sweep_state_ids:
+            raise RuntimeError(
+                "update_states_wts_b: the compiled sweep was traced under a "
+                "different clamp configuration or state Variables than the "
+                "current call (either is_clamped changed on a layer, or a "
+                "layer's .state was reset/rebuilt since the first trace). "
+                "The cached tf.function would silently keep mutating the "
+                "stale Variables it captured at trace time. Rebuild the "
+                "model or reset self._compiled_sweep (and the recorded "
+                "_sweep_clamp_sig / _sweep_state_ids) before calling this "
+                "again."
+            )
         for _ in range(int(num_steps)):
             self._compiled_sweep()
 
