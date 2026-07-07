@@ -32,11 +32,18 @@ def main():
     ap.add_argument("--lr", type=float, default=2e-2); ap.add_argument("--relax", type=int, default=15)
     ap.add_argument("--batch", type=int, default=8); ap.add_argument("--ckpt", default="ckpt_coco64")
     ap.add_argument("--energy-every", type=int, default=50); ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--state-clip", type=float, default=float("inf"))  # cap |state| after relaxation; inf = off
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
     print(f"data: img{img.shape} txt{txt.shape} mask{mask.shape}", flush=True)
     m = EncoderEncoderPCN(a.lr, config=COCO64_156M)
+    if np.isfinite(a.state_clip):
+        nclip = 0
+        for L in m.trainable_layers:
+            if hasattr(L, "state_clip"):
+                L.state_clip = a.state_clip; nclip += 1
+        print(f"state_clip = {a.state_clip} set on {nclip} layers", flush=True)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     # realize weights so they can be checkpointed
     b0 = slice(0, a.batch)
