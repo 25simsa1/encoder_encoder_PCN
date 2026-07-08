@@ -7,7 +7,7 @@ for g in tf.config.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(g, True)
 from encoder_encoder_pcn import EncoderEncoderPCN
 from conv_pcn_layer import Conv2DPCNLayer
-from pcn_config import COCO64_156M
+from pcn_config import COCO64_156M, COCO64_GEN
 from infonce import infonce_grads
 import coco64_data as D
 
@@ -56,13 +56,16 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--trust-cap", type=float, default=float("inf"))
     ap.add_argument("--conv-activation", default="relu")
+    ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
     print(f"data: img{img.shape} txt{txt.shape} mask{mask.shape}", flush=True)
-    m = EncoderEncoderPCN(a.lr, config=COCO64_156M)
+    CONFIGS = {"coco64_156m": COCO64_156M, "coco64_gen": COCO64_GEN}
+    m = EncoderEncoderPCN(a.lr, config=CONFIGS[a.config])
+    print(f"config={a.config}", flush=True)
     if np.isfinite(a.state_clip):
         nclip = 0
         for L in m.trainable_layers:
@@ -72,7 +75,7 @@ def main():
     if a.conv_activation != "relu":
         nc = 0
         for L in m.trainable_layers:
-            if isinstance(L, Conv2DPCNLayer):
+            if isinstance(L, Conv2DPCNLayer) and getattr(L, "stride", 1) == 1:
                 L.activation = a.conv_activation; nc += 1
         print(f"conv_activation={a.conv_activation} set on {nc} conv layers", flush=True)
     for L in m.trainable_layers:
