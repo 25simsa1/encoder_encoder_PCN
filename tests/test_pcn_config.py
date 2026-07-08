@@ -57,3 +57,21 @@ def test_config_post_init_lengths():
         assert len(c.img_dense_relu_widths) == 5 == len(c.shared_latent_dims) == len(c.txt_dense_relu_widths) == len(c.txt_tap_indices)
         assert len(c.txt_group_widths) == len(c.txt_group_blocks)
         assert len(c.txt_bridge_seq_lens) == len(c.txt_group_widths) - 1
+
+
+def test_downsample_field_and_coco64_gen():
+    from pcn_config import PCNConfig, NATIVE_7B, COCO64_156M, COCO64_GEN
+    assert NATIVE_7B.downsample == 'maxpool'
+    assert COCO64_156M.downsample == 'maxpool'
+    assert COCO64_GEN.downsample == 'strided_conv'
+    # COCO64_GEN matches COCO64_156M in every other field
+    for f in vars(COCO64_156M):
+        if f != 'downsample':
+            assert getattr(COCO64_GEN, f) == getattr(COCO64_156M, f)
+
+def test_downsample_validation():
+    import pytest
+    from pcn_config import PCNConfig, COCO64_156M
+    import dataclasses
+    with pytest.raises(Exception):
+        dataclasses.replace(COCO64_156M, downsample='bogus')

@@ -19,12 +19,14 @@ class PCNConfig:
     txt_tap_indices: tuple    # 5, txt_transformers block index per tap
                               # (dense3,dense7,dense11,dense15,dense19); -1 = final block
     conv_padding: str         # conv op padding: 'VALID' (native, shrinks) or 'SAME' (coco64, preserves spatial)
+    downsample: str = 'maxpool'   # image downsampling: 'maxpool' (native, one-way) or 'strided_conv' (invertible)
 
     def __post_init__(self):
         assert len(self.conv_channels) == 9, "expected 9 conv channels"
         assert len(self.img_dense_relu_widths) == len(self.shared_latent_dims) == len(self.txt_dense_relu_widths) == len(self.txt_tap_indices) == 5, "expected 5 per-scale values"
         assert len(self.txt_group_widths) == len(self.txt_group_blocks), "group widths/blocks length mismatch"
         assert len(self.txt_bridge_seq_lens) == len(self.txt_group_widths) - 1, "expected one bridge per group gap"
+        assert self.downsample in ('maxpool', 'strided_conv'), f"downsample must be maxpool|strided_conv, got {self.downsample}"
 
 NATIVE_7B = PCNConfig(
     name="native7b",
@@ -64,3 +66,10 @@ COCO64_156M = PCNConfig(
     txt_tap_indices=(-1, 4, 2, 1, 0),    # final, mid-group3, group2/1/0 ends for the 6-block 1+1+1+3 trunk
     conv_padding='SAME',                 # 64px input: convs preserve spatial size, only the 4 maxpools reduce 64->32->16->8->4
 )
+
+# Task 2: opt-in invertible downsampling for the top-down generative path.
+# Same as COCO64_156M but swaps the one-way maxpools for stride-2 shared-weight
+# convs (conv2d down / transpose-conv up), letting the generative drive flow
+# top-down through the downsampling stages instead of being blocked by it.
+import dataclasses as _dc
+COCO64_GEN = _dc.replace(COCO64_156M, downsample='strided_conv')
