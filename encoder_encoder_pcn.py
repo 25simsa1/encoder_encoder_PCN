@@ -152,6 +152,13 @@ class EncoderEncoderPCN:
         self._compiled_learn_sweep = None
         self._relax_sweep_trace_count = 0
         self._learn_sweep_trace_count = 0
+        def _build_downsample(prev_conv, channels):
+            if config.downsample == 'strided_conv':
+                ds = Conv2DPCNLayer(channels, (2, 2), learning_rate, 'linear', prev_conv, padding='SAME', stride=2)
+                self.trainable_layers.append(ds)
+                return ds
+            return MaxPool2DPCNLayer((2, 2), prev_conv)
+
         self.img_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.img_input)
         conv1 = Conv2DPCNLayer(config.conv_channels[0], (3, 3), learning_rate, 'relu', self.img_input, padding=config.conv_padding)
@@ -160,7 +167,7 @@ class EncoderEncoderPCN:
         conv2 = Conv2DPCNLayer(config.conv_channels[1], (3, 3), learning_rate, 'relu', conv1, padding=config.conv_padding)
         self.trainable_layers.append(conv2)
         conv1.next_layers = [conv2]
-        mp1 = MaxPool2DPCNLayer((2, 2), conv2)
+        mp1 = _build_downsample(conv2, config.conv_channels[1])
         conv2.next_layers = [mp1]
         conv3 = Conv2DPCNLayer(config.conv_channels[2], (3, 3), learning_rate, 'relu', mp1, padding=config.conv_padding)
         self.trainable_layers.append(conv3)
@@ -168,7 +175,7 @@ class EncoderEncoderPCN:
         conv4 = Conv2DPCNLayer(config.conv_channels[3], (3, 3), learning_rate, 'relu', conv3, padding=config.conv_padding)
         self.trainable_layers.append(conv4)
         conv3.next_layers = [conv4]
-        mp2 = MaxPool2DPCNLayer((2, 2), conv4)
+        mp2 = _build_downsample(conv4, config.conv_channels[3])
         conv4.next_layers = [mp2]
         conv5 = Conv2DPCNLayer(config.conv_channels[4], (3, 3), learning_rate, 'relu', mp2, padding=config.conv_padding)
         self.trainable_layers.append(conv5)
@@ -176,7 +183,7 @@ class EncoderEncoderPCN:
         conv6 = Conv2DPCNLayer(config.conv_channels[5], (3, 3), learning_rate, 'relu', conv5, padding=config.conv_padding)
         self.trainable_layers.append(conv6)
         conv5.next_layers = [conv6]
-        mp3 = MaxPool2DPCNLayer((2, 2), conv6)
+        mp3 = _build_downsample(conv6, config.conv_channels[5])
         conv6.next_layers = [mp3]
         conv7 = Conv2DPCNLayer(config.conv_channels[6], (3, 3), learning_rate, 'relu', mp3, padding=config.conv_padding)
         self.trainable_layers.append(conv7)
@@ -184,7 +191,7 @@ class EncoderEncoderPCN:
         conv8 = Conv2DPCNLayer(config.conv_channels[7], (3, 3), learning_rate, 'relu', conv7, padding=config.conv_padding)
         self.trainable_layers.append(conv8)
         conv7.next_layers = [conv8]
-        mp4 = MaxPool2DPCNLayer((2, 2), conv8)
+        mp4 = _build_downsample(conv8, config.conv_channels[7])
         conv8.next_layers = [mp4]
         conv9 = Conv2DPCNLayer(config.conv_channels[8], (3, 3), learning_rate, 'relu', mp4, padding=config.conv_padding)
         self.trainable_layers.append(conv9)
