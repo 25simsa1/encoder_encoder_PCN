@@ -5,6 +5,7 @@ The cross-modal coupling failure (an image-dominated shared latent that blocks t
 
 ## In flight
 - The capacity ladder's Phase-0 probing (CAPACITY.md), exact sizes solved, memory and throughput measured per device, and the epoch-tier decision made (full 150 epochs at every rung, no reduction needed).
+- Active drivers, `run_capacity_probe.py` (per-device probes, results in `capprobe_*.json`) and `run_coupling_capacity.py` (the ladder driver).
 
 ## Next steps
 - Submit the capacity-ladder training runs per the Placement plan in CAPACITY.md (pc, E1L, and E1-Adam arms across 330M to 7.7B on the assigned GPUs).

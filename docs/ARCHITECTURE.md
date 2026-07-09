@@ -9,7 +9,7 @@
 - `transformer_pcn_layer.py`, the text-path transformer building blocks (attention, add-normalize, positional encoding, and the per-group transformer wrapper).
 
 ## Experiment drivers
-The `run_*.py` scripts each drive one experiment family. Current ones include `run_capacity_probe.py` and `run_coupling_capacity.py` (the capacity-ladder Phase-0 probes and driver, see `CAPACITY.md`), `run_coupling_scale.py` and `run_coupling_unif.py` (coupling and uniformity checks), `run_E1_bp_clip_baseline.py` and `run_E1_lars_infonce.py` (the E1 baselines), `run_step1_coco_gate.py`, `run_step1_coco_heldout.py`, and `run_step2_coco_dissociation.py` (COCO gate and dissociation), and `run_BPonF.py` / `run_BPonF_freelatent.py` (BPonF baselines).
+The `run_*.py` scripts each drive one experiment family, capacity probes, coupling and uniformity checks, E1 baselines, COCO gate and dissociation, and BPonF baselines. The ones current to the active work are named in `docs/STATE.md`.
 
 ## Downsampling paths (invariant-critical)
 - NATIVE uses maxpool and must stay byte-identical.
