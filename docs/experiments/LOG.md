@@ -12,7 +12,7 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
-### 2026-07-07 strided-conv downsampling ships but text to image still blobs
+### 2026-07-08 strided-conv downsampling ships but text to image still blobs
 - config or command, COCO64_GEN with strided-conv downsampling
 - result, downsampling trains stably and ships clean, text to image still blobs under the standard relaxation
 - takeaway, invertible downsampling is necessary but not sufficient, drive-balance and non-generative training remain the obstacles
