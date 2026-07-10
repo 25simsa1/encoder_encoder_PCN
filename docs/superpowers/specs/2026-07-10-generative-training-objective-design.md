@@ -71,44 +71,50 @@ Phase 1, text-drive the latents.
   same relaxation the class already uses for generation in test_step.
 
 Phase 2, supervise the decode against the true image.
-- Freeze the five shared latents by clamping both members of each aliased pair
-  (is_clamped True on the image dense and its text dense). Because the pair shares one
-  state Variable, clamping both members freezes that shared state at its text-driven
-  value and prevents the image from re-setting it.
-- Clamp img_input to the true image (is_clamped True, set_state to the real image).
-- Relax K2 steps over the image-path intermediates only. They settle to bridge the frozen
-  text-driven latents above and the true image below. The frozen latents and the clamped
-  true image are the boundary conditions. This is standard PC inference with both ends
-  clamped and the hidden states relaxing.
-- Take the local weight step (update_wts then update_b) on the image-path intermediates.
-  The local rule reduces each layer's own prediction error given its neighbors, which
-  bakes the text-latent-to-true-image bridge into the shared decode weights. The frozen
-  latents are boundary conditions and are not weight-stepped here (their defining weights
-  are trained by the recon step).
+- Freeze the five shared latents WITHOUT clamping them. Leave them unclamped but exclude
+  them from the relaxation and the weight step, so their states stay at their text-driven
+  values (a state changes only when its own update_state is called) while still acting as
+  top-down sources. This is the critical detail. Clamping the latents would be wrong,
+  because update_state skips clamped next-layers in its top-down block (`if layer.is_clamped:
+  continue`), which would remove the latent's downward drive into the decode. An unclamped
+  latent that we simply do not relax is both fixed and still driving.
+- Clamp img_input to the true image (is_clamped True, set_state to the real image). It acts
+  as the bottom boundary and drives the layer above via the bottom-up term.
+- Relax K2 steps over the image-path intermediates only (the weight-bearing image layers
+  minus the five latents minus img_input). They settle to bridge the fixed text-driven
+  latents above and the true image below.
+- Take the local weight step (update_wts then update_b) on those same intermediates. The
+  local rule reduces each layer's own prediction error given its neighbors, which bakes the
+  text-latent-to-true-image bridge into the shared decode weights. The latents are fixed
+  top-down sources and are not weight-stepped here (their defining weights are trained by
+  the recon step).
 
-Clamp hygiene. At the end of the generative step, restore the recon clamp configuration
-(image and text clamped, all latents unclamped, img_input state ready for the next batch).
-The compiled recon sweep carries a clamp-signature guard that raises if is_clamped changed
-since its trace, so the generative step is eager and must hand back the exact recon
-configuration before the next recon step runs.
+Clamp hygiene. The generative step is eager, so its internal clamp changes never reach the
+compiled recon sweep. Note that phase 2 already ends in the recon clamp configuration
+(image clamped, text clamped, latents unclamped), the same signature the compiled sweep
+traced, so the only thing to undo is phase 1's temporary image unclamp, which phase 2 does
+by re-clamping img_input. Re-assert image-and-text-clamped, latents-unclamped at the end so
+the next compiled recon step's clamp-signature guard is satisfied.
 
 ## Component 3: layer sets and how the model exposes them
 
 The generative step needs three sets, exposed by the constructor the way it already
 exposes _infonce_codes.
-- The five shared-latent pairs to freeze. Derive after the full build as the pairs
-  (L.share_state_layer, L) for every layer L whose share_state_layer is set. This yields
-  the five (image_dense, text_dense) pairs (dense2/dense4, dense6/dense8, dense10/dense12,
-  dense14/dense16, dense18/dense20).
+- The five shared-latent pairs, to identify the latents held fixed in phase 2. Derive
+  after the full build as the pairs (L.share_state_layer, L) for every layer L whose
+  share_state_layer is set. This yields the five (image_dense, text_dense) pairs
+  (dense2/dense4, dense6/dense8, dense10/dense12, dense14/dense16, dense18/dense20).
 - The image-path layers. The constructor snapshots the image side by recording
   list(self.trainable_layers) at the point just before txt_input is built (all image-side
-  layers are appended before the text path). Store as self._image_path_layers.
+  layers, including the five image shared latents, are appended before the text path).
+  Store as self._image_path_layers.
 - img_input, already exposed, to clamp to the true image.
 
-The phase-2 relax-and-weight-step set is the image-path layers minus the five shared
-latents and minus img_input (the frozen latents and the clamped input are boundaries).
-Structural layers without state or weights (the flatten layers) are skipped by the usual
-hasattr/isinstance guards in the training loop.
+The phase-2 relax-and-weight-step set is the weight-bearing image-path layers (those with
+update_wts) minus the ten latent members (both sides of the five pairs) minus img_input.
+Those latents are left unclamped but out of the relax and weight loops (fixed top-down
+sources), and img_input is the clamped bottom boundary. Structural layers without weights
+(the flatten layers) fall out of the set via the update_wts guard.
 
 ## Component 4: eager and compiled interleave
 
