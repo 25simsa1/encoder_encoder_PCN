@@ -274,6 +274,7 @@ class EncoderEncoderPCN:
 
 
 
+        self._image_path_layers = list(self.trainable_layers)   # image side, snapshot before the text path is built
         self.txt_input = InputPCNLayer(learning_rate)
         self.trainable_layers.append(self.txt_input)
         txt_embedding = DensePCNLayer(config.txt_group_widths[0], learning_rate, 'linear', self.txt_input)
@@ -408,7 +409,11 @@ class EncoderEncoderPCN:
         inter20.next_layers = [dense20]
         self.trainable_layers.append(dense20)
 
-   
+        # (image_dense, text_dense) aliased shared-latent pairs, for the generative training mode
+        self._shared_latent_pairs = [(L.share_state_layer, L) for L in self.trainable_layers
+                                     if getattr(L, "share_state_layer", None) is not None]
+
+
     def pass_next(self, prev_layer, layer, mask=None):
         if hasattr(layer, 'prev_layers') and len(layer.prev_layers)==2:
             new_output = layer(layer.prev_layers[0].predict_next(), layer.prev_layers[1].predict_next())
