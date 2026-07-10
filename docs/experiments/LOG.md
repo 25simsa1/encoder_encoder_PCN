@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-09 top-down-boosted generation confirms invertible downsampling reconnected the pathway
+- config or command, top-down-boosted test_step generation on COCO64_GEN/ckpt_gen_best, gamma sweep 0/0.5/1/2 (the boost now flows THROUGH the invertible strided-conv downsamplers, unlike the maxpool-blocked earlier attempt), job 8808 on the L4
+- result, image PR rose 0.00 -> 1.34 -> 2.32 -> 6.93 (max 8) with gamma; the caption now drives the image per-pixel and distinctly per caption (vs the maxpool model's uniform green tint), but the outputs are transpose-conv checkerboard fields (low gamma) / caption-varying colorful speckle (high gamma), not recognizable scenes
+- takeaway, invertible downsampling + a top-down generation schedule solve the structural block AND the drive-balance at inference (caption controls the image, no retraining) -- recognizable CONTENT is the one remaining lever and needs the generative-training objective, since the decode was trained both-clamped and was never top-down-self-sufficient
+
+---
+
 ### 2026-07-08 strided-conv downsampling ships but text to image still blobs
 - config or command, COCO64_GEN with strided-conv downsampling
 - result, downsampling trains stably and ships clean, text to image still blobs under the standard relaxation

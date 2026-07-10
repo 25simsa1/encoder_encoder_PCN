@@ -1,7 +1,7 @@
 # State (updated 2026-07-09)
 
 ## Current hypothesis
-The cross-modal coupling failure (an image-dominated shared latent that blocks text-to-image generation) has resisted every intervention tried so far, including a PC-native InfoNCE coupling and invertible strided-conv downsampling. The open experimental question is whether it persists as the model scales from 156M to 7.7B parameters, judged at the 8k-pair scale against the banked bar.
+The text-to-image failure has now been decomposed. Invertible strided-conv downsampling reconnected the generative pathway (which the one-way maxpools had severed), and a top-down-authoritative generation schedule at inference makes the caption drive the image per-pixel and distinctly per caption (image PR 0 -> 6.93 as the top-down boost rises) -- so the structural block and the drive-balance are solved without retraining. What remains is that the decode produces artifacts/speckle rather than recognizable scenes, because it was trained both-clamped (reconstruction only) and never learned top-down self-sufficiency; the next lever is a PC-native generative-training objective. Separately, the broader banked question -- whether the coupling failure persists as the model scales 156M -> 7.7B, judged at the 8k-pair scale against the bar -- still stands via the capacity ladder.
 
 ## In flight
 - The capacity ladder's Phase-0 probing (CAPACITY.md), exact sizes solved, memory and throughput measured per device, and the epoch-tier decision made (full 150 epochs at every rung, no reduction needed).
