@@ -28,12 +28,15 @@ def energy_stats(m):
                 pass
     return (total_err / n if n > 0 else float("nan")), max_abs
 
-def generative_step(m, img_np, txt_np, mask_np, k1, k2):
+def generative_step(m, img_np, txt_np, mask_np, k1, k2, gen_lr=None):
     """PC-native generative step. Phase 1: caption clamped, image = zeros unclamped, relax k1
     so the shared latents become text-driven. Phase 2: clamp the TRUE image; leave the latents
     UNCLAMPED but do NOT relax them (fixed text-driven top-down sources), relax the image decode
     intermediates k2 to bridge, then the existing local weight step. Only clamp + update_state +
-    update_wts; no backprop, no separate decoder. Ends in the recon clamp configuration."""
+    update_wts; no backprop, no separate decoder. Ends in the recon clamp configuration.
+    gen_lr (optional): a gentler learning rate applied to the decode layers for THIS weight step
+    only (restored after), so the generative step can train the decode over many epochs without
+    degrading reconstruction. None keeps each layer's own rate."""
     T = tf.convert_to_tensor
     img = T(img_np); txt = T(txt_np); mask = T(mask_np)
     pairs = m._shared_latent_pairs
@@ -58,8 +61,21 @@ def generative_step(m, img_np, txt_np, mask_np, k1, k2):
     for _ in range(k2):
         for L in decode:
             L.update_state()
+    # weight step, optionally with a gentler rate on the decode layers (restored after)
+    _orig = None
+    if gen_lr is not None:
+        _orig = [(L, L.learning_rate, getattr(L, "bias_lr", None)) for L in decode]
+        for L in decode:
+            L.learning_rate = gen_lr
+            if hasattr(L, "bias_lr"):
+                L.bias_lr = gen_lr
     for L in decode:
         L.update_wts(); L.update_b()
+    if _orig is not None:
+        for L, lr0, blr0 in _orig:
+            L.learning_rate = lr0
+            if blr0 is not None:
+                L.bias_lr = blr0
 
     # restore the recon clamp config (image+text clamped, latents unclamped) for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
@@ -99,6 +115,7 @@ def main():
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k1", type=int, default=None)
     ap.add_argument("--gen-relax-k2", type=int, default=None)
+    ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -152,7 +169,7 @@ def main():
                 m.update_states_wts_b_relaxed(num_weight_steps=1, num_relax_steps=a.relax)
             if a.train_mode == "gen" and step % a.gen_every == 0:
                 generative_step(m, img[bi], txt[bi], mask[bi],
-                                a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax)
+                                a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax, a.gen_lr)
             step += 1
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
