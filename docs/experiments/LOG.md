@@ -12,6 +12,20 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-11 weight-norm stabilizer, layers + COCO64 inertness gate (byte-identical when off)
+- config or command, implemented the PC-native weight-normalization reparameterization on the conv (c0a4d42) and dense (e0ba22e) layers (w = g_mag * v/||v|| per output unit, weight() accessor both directions, update_wts split into a radial magnitude step + a tangential direction step, LARS dropped for these layers, opt-in --weight-norm); 7 unit tests pass. Gate on L4, tools/rewrite_gate.py --config coco64 --relaxed vs the pre-change banked ref docs/superpowers/gate_ref_coco64.npz
+- result, byte-identical when off CONFIRMED: run-to-run GATE_MATCH (current code deterministic on one node) AND ref-vs-cur GATE_MATCH nlayers=88 tol=1e-4. First gate attempt on node n7 showed a spurious GATE_MISMATCH of 1.27-1.32e-4 on 3 of 88 layers = cross-node L4 fp variation (cuDNN), NOT the code; re-running on a node consistent with the ref gave the exact match. Operational lesson, a single-run L4 GATE_MISMATCH at ~1e-4 needs a same-node run-to-run re-check before it counts as a regression (or pin the node / use tol ~2e-4 cross-node). NATIVE-143 gate deferred to a big-GPU window (H200 drained); interim proof = this COCO64 gate + provable inertness (weight() returns self.wts, else-LARS unchanged) + the unit tests
+- takeaway, the weight-norm change is inert when off (NATIVE-safe), so the structural fix is in place; next is wiring --weight-norm into train_coco64 (with g_mag persistence) and the make-or-break CHL retrain that must hold training past the ep13 norm-inflation wall
+
+---
+
+### 2026-07-11 CHL destabilizes ~ep13 like every approach: NORM INFLATION is the common blocker
+- config or command, CHL retrain (job 8830, warm-start recon, --train-mode chl --gen-lr 3e-4 --gen-every 4, 30 ep, L4); darkness_diag + gen_retest on ckpt_chl (ep29, corrupted) and ckpt_chl_best (stable, early)
+- result, CHL held to ~ep10 (energy 0.014, state ~110) then norm-inflated: state hit the 400 clip by ep16-17, energy exploded to 7-10 by ep19-20. Stable best ckpt: standard test_step still a blob; boosted generation has the best CONTRAST yet (std ratio 0.40 vs prior 0.08-0.30) but the same dark brightness (mean ratio 0.38), not recognizable. Monitoring gap: the B-gate grep watched only DIVERGED/RuntimeError, not state-pinned-at-clip, so the Monitor reported a clean TRAIN_DONE on a blown-up run
+- takeaway, EVERY generative-training approach (InfoNCE, one-sided bridge, gentle-lr, CHL) destabilizes via NORM INFLATION at ~ep13, capping the achievable generation. The objective is not the blocker; the underlying norm-inflation instability is (the beta-less-LARS / effective-LR-vs-scale thread). The real next lever is the deferred structural stabilizer (muP effective-LR scaling, weight normalization, or a norm penalty in the PC energy) so any generative training can run long enough to sharpen
+
+---
+
 ### 2026-07-10 objective diagnostic: darkness is the top-down conditional-mean, not weight decay
 - config or command, tools/objective_diag.py A/B on ckpt_gen_best (clean recon), 30 generative steps with weight decay ON (3e-2) vs OFF (0) on the decode layers, measuring decode weight-norm + boosted-generation brightness
 - result, decode weight-norm unchanged in both arms (424.5 -> 424.3, ratio 1.000, so weight decay is NOT shrinking the weights); weight-decay-OFF ended darker (gen mean 0.033) than ON (0.087), refuting the shrinkage hypothesis. Even the clean recon decode already generates dark top-down (mean 0.155, 0.40x true) with ZERO generative steps, and generative steps rearrange the weights toward an even darker output
