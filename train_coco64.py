@@ -183,6 +183,7 @@ def main():
     ap.add_argument("--gen-relax-k2", type=int, default=None)
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
+    ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -208,6 +209,12 @@ def main():
         if hasattr(L, "trust_cap"):
             L.trust_cap = a.trust_cap
     print(f"weight_decay={a.weight_decay} trust_cap={a.trust_cap}", flush=True)
+    if a.hf_weight > 0:
+        nhf = 0
+        for L in m.trainable_layers:
+            if isinstance(L, Conv2DPCNLayer) and getattr(L, "prev_layer", None) is m.img_input:
+                L.hf_gamma = a.hf_weight; nhf += 1
+        print(f"hf_weight={a.hf_weight} set on {nhf} bottom conv layer(s)", flush=True)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     # realize weights so they can be checkpointed
     b0 = slice(0, a.batch)
