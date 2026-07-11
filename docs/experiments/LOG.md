@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-11 weight-norm needs the LARS trust ratio KEPT (fresh-init smoke exploded without it)
+- config or command, plumbing smoke of --weight-norm on COCO64_GEN (L4), fresh-init recon+weight-norm and chl+weight-norm, per-step energy and max_abs_state
+- result, the spec's "drop LARS trust" EXPLODED in one weight step (step1 energy 259 -> step2 5.9e20, states slammed to the 400 clip, NaN by step3). Root cause, weight-norm bounds the ASYMPTOTIC ||w|| but NOT the per-step gradient magnitude; the LARS trust ratio was the per-layer STEP normalization a single lr needs across this model's fan-in (27..20.6M). FIX (commit 7d8f50e), keep the trust ratio in the weight-norm branch, computed on ||wts||=||v|| which the tangential split PRESERVES, so it normalizes the step with no inflation feedback (the radial growth is already diverted into the damped g_mag). After the fix, fresh recon AND chl train STABLY (energy ~0.05, states bounded 8->22 over 4 epochs, TRAIN_DONE); 7 unit tests still pass; off-path untouched so the gate still holds
+- takeaway, weight-norm and trust address DIFFERENT failures -- weight-norm kills the asymptotic norm inflation (the slow ep13 creep), trust normalizes the per-step size across the wide fan-in. Both are needed; the spec was wrong to drop trust. The make-or-break is whether the two together hold the warm-started CHL run past ep13
+
+---
+
 ### 2026-07-11 weight-norm stabilizer, layers + COCO64 inertness gate (byte-identical when off)
 - config or command, implemented the PC-native weight-normalization reparameterization on the conv (c0a4d42) and dense (e0ba22e) layers (w = g_mag * v/||v|| per output unit, weight() accessor both directions, update_wts split into a radial magnitude step + a tangential direction step, LARS dropped for these layers, opt-in --weight-norm); 7 unit tests pass. Gate on L4, tools/rewrite_gate.py --config coco64 --relaxed vs the pre-change banked ref docs/superpowers/gate_ref_coco64.npz
 - result, byte-identical when off CONFIRMED: run-to-run GATE_MATCH (current code deterministic on one node) AND ref-vs-cur GATE_MATCH nlayers=88 tol=1e-4. First gate attempt on node n7 showed a spurious GATE_MISMATCH of 1.27-1.32e-4 on 3 of 88 layers = cross-node L4 fp variation (cuDNN), NOT the code; re-running on a node consistent with the ref gave the exact match. Operational lesson, a single-run L4 GATE_MISMATCH at ~1e-4 needs a same-node run-to-run re-check before it counts as a regression (or pin the node / use tol ~2e-4 cross-node). NATIVE-143 gate deferred to a big-GPU window (H200 drained); interim proof = this COCO64 gate + provable inertness (weight() returns self.wts, else-LARS unchanged) + the unit tests

@@ -129,3 +129,20 @@ the clip, so the decode trains long enough. Fix the Monitor B-gate first to watc
 
 muP and the state-norm-penalty alternatives (this chose weight-norm), the fix-`g_mag` variant
 (fallback only), held-out, and the capacity ladder.
+
+## Correction (2026-07-11, after the plumbing smoke)
+
+The decision above to DROP the LARS trust ratio for weight-norm layers is WRONG and was reversed
+in the implementation (commit 7d8f50e). On the fresh-init plumbing smoke, recon+weight-norm
+exploded in a SINGLE weight step (step 1 energy 259, step 2 energy 5.9e20, states slammed to the
+400 clip, NaN by step 3). Weight-norm bounds the ASYMPTOTIC `||w||` but does nothing about the
+PER-STEP gradient magnitude, and the LARS trust ratio was the per-layer step normalization a
+single lr needs across this model's fan-in (27 to 20.6M). The fix KEEPS the trust ratio in the
+weight-norm branch, computed on `||wts|| = ||v||` which the tangential split PRESERVES, so it
+normalizes the step with no inflation feedback (the runaway `||w||` growth is already killed by
+diverting the radial part into the damped `g_mag`). After the fix, fresh recon and CHL train
+stably (energy ~0.05, states bounded), the unit tests still pass, and the off-path is untouched
+so the gate still holds. So the working design is weight-norm (kills the asymptotic inflation,
+the slow ep13 creep) PLUS the trust ratio on the stabilized `||v||` (normalizes the per-step size
+across fan-in); both are needed. Read this section as superseding every "drop LARS trust" line
+above.
