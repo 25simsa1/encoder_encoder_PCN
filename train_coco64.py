@@ -80,6 +80,71 @@ def generative_step(m, img_np, txt_np, mask_np, k1, k2, gen_lr=None):
     # restore the recon clamp config (image+text clamped, latents unclamped) for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
+def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr):
+    """Contrastive-Hebbian generative step (PC-native, no backprop, no separate decoder).
+    Phase 0: caption clamped, image=zeros unclamped, relax k0 so the shared latents become
+    text-set; then HOLD the latents fixed (unclamped but excluded from the decode loops) for
+    both phases below, so the contrast varies only the image.
+    FREE phase: latents fixed, image FREE, relax the decode k1 -> the standalone generation;
+    anti-learn it (decode weight step with -gen_lr, weight decay off).
+    CLAMPED phase: same fixed latents, img_input clamped to the TRUE image, relax the decode
+    k2 -> the target; learn it (decode weight step with +gen_lr, weight decay off).
+    Net decode update: wts -= gen_lr*(g_clamped - g_free). Ends in the recon clamp config."""
+    T = tf.convert_to_tensor
+    img = T(img_np); txt = T(txt_np); mask = T(mask_np)
+    pairs = m._shared_latent_pairs
+    latent_ids = set()
+    for a_, b_ in pairs:
+        latent_ids.add(id(a_)); latent_ids.add(id(b_))
+    decode = [L for L in m._image_path_layers
+              if hasattr(L, "update_wts") and id(L) not in latent_ids and L is not m.img_input]
+
+    def _weight_step(signed_lr):
+        # local weight step on the decode with a signed rate and weight decay OFF, restored after
+        orig = [(L, L.learning_rate, getattr(L, "bias_lr", None), getattr(L, "weight_decay", None)) for L in decode]
+        for L in decode:
+            L.learning_rate = signed_lr
+            if hasattr(L, "bias_lr"):
+                L.bias_lr = signed_lr
+            if hasattr(L, "weight_decay"):
+                L.weight_decay = 0.0
+        for L in decode:
+            L.update_wts(); L.update_b()
+        for L, lr0, blr0, wd0 in orig:
+            L.learning_rate = lr0
+            if blr0 is not None:
+                L.bias_lr = blr0
+            if wd0 is not None:
+                L.weight_decay = wd0
+
+    # Phase 0: text-drive the shared latents (image zeros, unclamped, full relax)
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+    m.pass_through(tf.zeros_like(img), txt, mask)
+    m.img_input.is_clamped = False
+    for _ in range(k0):
+        for L in m.trainable_layers:
+            L.update_state()
+        m.img_input.update_state()
+    # latents are now text-set; they stay unclamped but are excluded from the decode loops (fixed)
+
+    # FREE phase: latents fixed, image FREE, relax the decode, then ANTI-LEARN
+    m.img_input.is_clamped = False
+    for _ in range(k1):
+        for L in decode:
+            L.update_state()
+        m.img_input.update_state()
+    _weight_step(-gen_lr)
+
+    # CLAMPED phase: latents fixed, img_input clamped to the TRUE image, relax the decode, then LEARN
+    m.img_input.set_state(img); m.img_input.is_clamped = True
+    for _ in range(k2):
+        for L in decode:
+            L.update_state()
+    _weight_step(+gen_lr)
+
+    # restore the recon clamp config for the next recon step
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+
 def infonce_relax_step(m, img, txt, mask, relax, lam, tau):
     """Relax-then-step with an InfoNCE error injected at the deepest branch codes each
     relax substep, then the existing local LARS weight step. Eager (does not use the
@@ -111,8 +176,9 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl"])
     ap.add_argument("--gen-every", type=int, default=1)
+    ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
     ap.add_argument("--gen-relax-k2", type=int, default=None)
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
@@ -170,6 +236,10 @@ def main():
             if a.train_mode == "gen" and step % a.gen_every == 0:
                 generative_step(m, img[bi], txt[bi], mask[bi],
                                 a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax, a.gen_lr)
+            elif a.train_mode == "chl" and step % a.gen_every == 0:
+                chl_step(m, img[bi], txt[bi], mask[bi],
+                         a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
+                         a.gen_lr or a.lr)
             step += 1
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
