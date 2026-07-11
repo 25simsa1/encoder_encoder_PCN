@@ -36,6 +36,7 @@ class Conv2DPCNLayer:
         self.input_shape = None   # pre-downsample spatial shape, recorded at forward time (for the strided transpose)
         self.weight_norm = False          # plain Python bool: tf.function branches resolve at trace time
         self.g_mag = None                 # per-output-filter magnitude, created by enable_weight_norm
+        self.hf_gamma = 0.0               # high-frequency boost on the bottom pixel error; 0 = off
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -149,11 +150,27 @@ class Conv2DPCNLayer:
             if self.state_clip != float('inf'):
                 self.state.assign(tf.clip_by_value(self.state, -self.state_clip, self.state_clip))
 
+    def _hf(self, e):
+        # High-frequency boost of a bottom prediction error: e + hf_gamma * Laplacian(e), a
+        # fixed depthwise high-pass so this stays the layer's own local error (no backprop).
+        # hf_gamma == 0 returns e unchanged (byte-identical). Built fresh each call (a tiny
+        # graph constant), so it is safe inside the compiled relaxation sweep.
+        if self.hf_gamma == 0.0:
+            return e
+        c = int(e.shape[-1])
+        lap = tf.constant([[0., -1., 0.], [-1., 4., -1.], [0., -1., 0.]], tf.float32)
+        kernel = tf.reshape(lap, (3, 3, 1, 1)) * tf.ones((1, 1, c, 1), tf.float32)
+        # reflect-pad then VALID, so a constant field maps to exactly 0 (a true high-pass with
+        # no zero-padding border ring at the literal image edge), preserving the spatial shape.
+        ep = tf.pad(e, [[0, 0], [1, 1], [1, 1], [0, 0]], mode="REFLECT")
+        hp = tf.nn.depthwise_conv2d(ep, kernel, strides=[1, 1, 1, 1], padding="VALID")
+        return e + self.hf_gamma * hp
+
     # 1/2*(gelu(conv(prev.state, self.wts))-self.state)^2
     # => (gelu(conv(prev.state, self.wts))-self.state) * d_gelu(conv(prev.state, self.wts)) * conv2dbackprop
     #          (B, H2, W2, C2)                             (B, H2, W2, C2)                    (Fx, Fy, C1, C2)
     # 1/2*(self.predict_prev - prev.state)^2
-    # => (self.predict_prev - prev.state) * 
+    # => (self.predict_prev - prev.state) *
     def update_wts(self):
         d_state = tf.zeros_like(self.wts)
         d_pred = tf.zeros_like(self.wts)
@@ -172,13 +189,13 @@ class Conv2DPCNLayer:
             if not self.is_clamped:
                 pred = self.predict_prev()
                 if self.activation == 'relu':
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(tf.nn.relu(pred)-tf.nn.relu(self.prev_layer.predict_next())), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
                 elif self.activation == 'gelu':
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.gelu(pred)-tf.nn.gelu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(tf.nn.gelu(pred)-tf.nn.gelu(self.prev_layer.predict_next())), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
                 elif self.activation == 'silu':
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=tf.nn.silu(pred)-tf.nn.silu(self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(tf.nn.silu(pred)-tf.nn.silu(self.prev_layer.predict_next())), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
                 else:
-                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
+                    d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(pred-self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
                 g = (d_state + d_pred) / denom
