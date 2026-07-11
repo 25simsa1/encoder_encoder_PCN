@@ -34,12 +34,31 @@ class Conv2DPCNLayer:
         self.padding = padding
         self.stride = stride
         self.input_shape = None   # pre-downsample spatial shape, recorded at forward time (for the strided transpose)
+        self.weight_norm = False          # plain Python bool: tf.function branches resolve at trace time
+        self.g_mag = None                 # per-output-filter magnitude, created by enable_weight_norm
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
         self.wts = tf.Variable(tf.random.normal((*self.kernel_size, input_shape[-1], self.num_units), dtype=tf.float32,
                             stddev=tf.cast(self.get_kaiming_gain()/tf.sqrt(float(self.kernel_size[0]*self.kernel_size[1]*input_shape[-1])), tf.float32)), trainable=False)
     
+    def weight(self):
+        # The effective weight used identically in predict_next (encode) and predict_prev
+        # (decode). Off = self.wts (byte-identical). On = per-output-filter magnitude g_mag
+        # times the unit direction wts/||wts||, normalized over the (kh, kw, in) axes.
+        if not self.weight_norm:
+            return self.wts
+        norm = tf.sqrt(tf.reduce_sum(tf.square(self.wts), axis=[0, 1, 2], keepdims=True)) + 1e-8
+        return tf.reshape(self.g_mag, (1, 1, 1, -1)) * self.wts / norm
+
+    def enable_weight_norm(self):
+        # Seamless enable: g_mag = per-filter ||wts||, so weight() == wts at enable time.
+        if self.wts is None:
+            raise RuntimeError("realize weights (run a forward pass) before enabling weight_norm")
+        norm = tf.sqrt(tf.reduce_sum(tf.square(self.wts), axis=[0, 1, 2]))   # (O,)
+        self.g_mag = tf.Variable(norm, trainable=False)
+        self.weight_norm = True
+
     def predict_prev(self):
         # The decode transpose must reconstruct net_in's INPUT shape. Under VALID
         # the forward conv shrank the map by (kernel-1), so the transpose expands
@@ -51,23 +70,23 @@ class Conv2DPCNLayer:
                 output_shape = (self.output_shape[0], self.output_shape[1], self.output_shape[2], self.wts.shape[-2])
             else:
                 output_shape = (self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.wts, padding=self.padding, strides=1, output_shape=output_shape)
+            return tf.nn.conv2d_transpose(self.state, self.weight(), padding=self.padding, strides=1, output_shape=output_shape)
         else:
             output_shape = (self.output_shape[0], self.input_shape[1], self.input_shape[2], self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.wts, padding=self.padding, strides=self.stride, output_shape=output_shape)
+            return tf.nn.conv2d_transpose(self.state, self.weight(), padding=self.padding, strides=self.stride, output_shape=output_shape)
     
     def predict_next(self):
         return self.state
     
     def pred_loss_d_input(self, x:tf.Tensor):
         if self.activation == 'relu':
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=self.stride, padding=self.padding, output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.weight(), strides=self.stride, padding=self.padding, output_shape=x.shape)
         elif self.activation == 'gelu':
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.wts, strides=self.stride, padding=self.padding, output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_gelu(self.net_in(x)), self.weight(), strides=self.stride, padding=self.padding, output_shape=x.shape)
         elif self.activation == 'silu':
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_silu(self.net_in(x)), self.wts, strides=self.stride, padding=self.padding, output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x))*self.d_silu(self.net_in(x)), self.weight(), strides=self.stride, padding=self.padding, output_shape=x.shape)
         else:
-            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.wts, strides=self.stride, padding=self.padding, output_shape=x.shape)
+            return tf.nn.conv2d_transpose(-(self.predict_next()-self(x)), self.weight(), strides=self.stride, padding=self.padding, output_shape=x.shape)
 
     def d_gelu(self, x:tf.Tensor):
         return 0.5*(1+tf.math.erf(x/tf.sqrt(2.))) + x/tf.sqrt(2*tf.acos(-1.))*tf.exp(-tf.square(x)/2)
@@ -112,18 +131,18 @@ class Conv2DPCNLayer:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
-                        self.wts, strides=self.stride, padding=self.padding)
+                        self.weight(), strides=self.stride, padding=self.padding)
                 elif self.activation == 'gelu':
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
-                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.gelu(layer.predict_next()) - tf.nn.gelu(self.predict_prev())), self.wts, strides=self.stride, padding=self.padding)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.gelu(layer.predict_next()) - tf.nn.gelu(self.predict_prev())), self.weight(), strides=self.stride, padding=self.padding)
                 elif self.activation == 'silu':
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
-                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.silu(layer.predict_next()) - tf.nn.silu(self.predict_prev())), self.wts, strides=self.stride, padding=self.padding)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.silu(layer.predict_next()) - tf.nn.silu(self.predict_prev())), self.weight(), strides=self.stride, padding=self.padding)
                 else:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(layer.predict_next() - self.predict_prev()),
-                        self.wts, strides=self.stride, padding=self.padding)
+                        self.weight(), strides=self.stride, padding=self.padding)
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
@@ -162,14 +181,24 @@ class Conv2DPCNLayer:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=pred-self.prev_layer.predict_next(), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
-                # LARS / trust-ratio step: scale by ||w||/||g|| (norms over the full 4D kernel/grad)
                 g = (d_state + d_pred) / denom
                 wd = self.weight_decay
-                wn = tf.norm(self.wts)
-                trust = wn / (tf.norm(g) + wd * wn + 1e-6)
-                trust = tf.minimum(trust, self.trust_cap)
-                self.last_trust = trust  # exposed for logging only
-                self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
+                if self.weight_norm:
+                    # Split the local gradient g (w.r.t. the effective weight) into a radial
+                    # magnitude update and a tangential direction update, per output filter.
+                    # ||w|| = |g_mag| stays bounded (damped by wd); ||wts|| ~preserved (dv ⊥ vhat).
+                    norm = tf.sqrt(tf.reduce_sum(tf.square(self.wts), axis=[0, 1, 2], keepdims=True)) + 1e-8
+                    vhat = self.wts / norm
+                    dg = tf.reduce_sum(g * vhat, axis=[0, 1, 2])                 # (O,)
+                    dv = (tf.reshape(self.g_mag, (1, 1, 1, -1)) / norm) * (g - tf.reshape(dg, (1, 1, 1, -1)) * vhat)
+                    self.g_mag.assign_sub(self.learning_rate * (dg + wd * self.g_mag))
+                    self.wts.assign_sub(self.learning_rate * dv)
+                else:
+                    wn = tf.norm(self.wts)
+                    trust = wn / (tf.norm(g) + wd * wn + 1e-6)
+                    trust = tf.minimum(trust, self.trust_cap)
+                    self.last_trust = trust  # exposed for logging only
+                    self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
 
     def update_b(self):
         pass # there is no bias
@@ -185,7 +214,7 @@ class Conv2DPCNLayer:
         if self.wts is None:
             self.init_params(x.shape)
         self.input_shape = x.shape
-        return tf.nn.conv2d(x, self.wts, padding=self.padding, strides=self.stride)
+        return tf.nn.conv2d(x, self.weight(), padding=self.padding, strides=self.stride)
 
     def __call__(self, x : tf.Tensor, set_state:bool = False):
         net_in = self.net_in(x)
