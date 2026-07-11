@@ -182,6 +182,7 @@ def main():
     ap.add_argument("--gen-relax-k1", type=int, default=None)
     ap.add_argument("--gen-relax-k2", type=int, default=None)
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
+    ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -220,6 +221,30 @@ def main():
     if a.resume and mgr.latest_checkpoint:
         ckpt.restore(mgr.latest_checkpoint); print("resumed", mgr.latest_checkpoint, flush=True)
 
+    WN_W = []
+    wn_mgr = wn_best_mgr = None
+    if a.weight_norm:
+        nwn = 0
+        for L in m.trainable_layers:
+            if hasattr(L, "enable_weight_norm") and getattr(L, "wts", None) is not None:
+                L.enable_weight_norm(); nwn += 1
+        WN_W = [L.g_mag for L in m.trainable_layers if getattr(L, "weight_norm", False)]
+        print(f"weight_norm enabled on {nwn} conv/dense layers", flush=True)
+        if WN_W:
+            wn_ckpt = tf.train.Checkpoint(**{f"g{i}": v for i, v in enumerate(WN_W)})
+            wn_mgr = tf.train.CheckpointManager(wn_ckpt, a.ckpt + "_wn", max_to_keep=1)
+            wn_best_mgr = tf.train.CheckpointManager(wn_ckpt, a.ckpt + "_best_wn", max_to_keep=1)
+            if a.resume and wn_mgr.latest_checkpoint:
+                wn_ckpt.restore(wn_mgr.latest_checkpoint)   # restore trained magnitudes over the ||wts||-derived ones
+                print("resumed wn", wn_mgr.latest_checkpoint, flush=True)
+
+    def save_latest():
+        mgr.save()
+        if wn_mgr is not None: wn_mgr.save()
+    def save_best():
+        best_mgr.save()
+        if wn_best_mgr is not None: wn_best_mgr.save()
+
     N = img.shape[0]; step = 0; t0 = time.time()
     ia, il = 0.0, 0.0
     for ep in range(a.epochs):
@@ -248,12 +273,12 @@ def main():
                     msg += f" infonce_acc={ia:.3f} infonce_loss={il:.4f}"
                 print(msg, flush=True)
                 if np.isfinite(e) and e < best_e:
-                    best_e = e; best_mgr.save(); print(f"best @ {step} energy={e:.5f}", flush=True)
+                    best_e = e; save_best(); print(f"best @ {step} energy={e:.5f}", flush=True)
                 if not np.isfinite(e) or not np.isfinite(mx) or mx > 1e6:
-                    print(f"DIVERGED at step {step}", flush=True); mgr.save(); return
+                    print(f"DIVERGED at step {step}", flush=True); save_latest(); return
             if step % 1000 == 0:
-                mgr.save(); print(f"ckpt @ {step}", flush=True)
-    mgr.save(); print("TRAIN_DONE", flush=True)
+                save_latest(); print(f"ckpt @ {step}", flush=True)
+    save_latest(); print("TRAIN_DONE", flush=True)
 
 if __name__ == "__main__":
     main()
