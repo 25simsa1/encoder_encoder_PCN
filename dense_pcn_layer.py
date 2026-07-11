@@ -150,8 +150,13 @@ class DensePCNLayer:
                     vhat = self.wts / norm
                     dg = tf.reduce_sum(g * vhat, axis=0)                         # (out,)
                     dv = (self.g_mag[None, :] / norm) * (g - dg[None, :] * vhat)
-                    self.g_mag.assign_sub(self.learning_rate * (dg + wd * self.g_mag))
-                    self.wts.assign_sub(self.learning_rate * dv)
+                    # Trust-normalize the step (LARS-style) on ||wts||=||v||, which the tangential
+                    # split preserves, so a single lr works across fan-in with no inflation feedback.
+                    wn = tf.norm(self.wts)
+                    trust = wn / (tf.norm(g) + wd * wn + 1e-6)
+                    trust = tf.minimum(trust, self.trust_cap)
+                    self.g_mag.assign_sub(self.learning_rate * trust * (dg + wd * self.g_mag))
+                    self.wts.assign_sub(self.learning_rate * trust * dv)
                 else:
                     wn = tf.norm(self.wts)
                     trust = wn / (tf.norm(g) + wd * wn + 1e-6)

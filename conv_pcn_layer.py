@@ -191,8 +191,15 @@ class Conv2DPCNLayer:
                     vhat = self.wts / norm
                     dg = tf.reduce_sum(g * vhat, axis=[0, 1, 2])                 # (O,)
                     dv = (tf.reshape(self.g_mag, (1, 1, 1, -1)) / norm) * (g - tf.reshape(dg, (1, 1, 1, -1)) * vhat)
-                    self.g_mag.assign_sub(self.learning_rate * (dg + wd * self.g_mag))
-                    self.wts.assign_sub(self.learning_rate * dv)
+                    # Trust-normalize the step (LARS-style) so a single lr works across this
+                    # model's very wide fan-in. Trust uses ||wts||=||v||, which the tangential
+                    # split PRESERVES, so there is no norm-inflation feedback (the runaway ||w||
+                    # growth is already killed by diverting the radial part into the damped g_mag).
+                    wn = tf.norm(self.wts)
+                    trust = wn / (tf.norm(g) + wd * wn + 1e-6)
+                    trust = tf.minimum(trust, self.trust_cap)
+                    self.g_mag.assign_sub(self.learning_rate * trust * (dg + wd * self.g_mag))
+                    self.wts.assign_sub(self.learning_rate * trust * dv)
                 else:
                     wn = tf.norm(self.wts)
                     trust = wn / (tf.norm(g) + wd * wn + 1e-6)
