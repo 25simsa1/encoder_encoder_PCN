@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-12 Approach B3 (diffusion-in-PC) is a NULL, the denoiser trained into a plain autoencoder
+- config or command, diffusion-in-PC: diffusion_step (encode a noised x_t + caption -> latent, local weight step toward the clean x_0) over a 10-level schedule (sigma 0.05..0.8), --train-mode diffusion, warm-started from ckpt_gen_best, job 8902, 10ep, L4, no layer change (noise on data) so gate holds trivially. Retest, reverse-diffusion sampler tools/diffusion_sample.py + direct denoiser test tools/denoise_test.py
+- result, training STABLE (energy finite, states bounded, TRAIN_DONE). Reverse-diffusion generation from noise = PURE RGB NOISE (image grid). Fixed a real sampler bug first (it read the reconstruction of x_t with x_t still clamped; corrected to unclamp+decode-relax to read x0_hat) -- still noise. DIRECT DENOISER TEST is conclusive, at every level the denoised MSE-to-true EQUALS the noised MSE EXACTLY (0.0087/0.0610/0.1461), i.e. x0_hat = x_t, the net just RECONSTRUCTS its input and never denoises
+- takeaway, B3 is a NULL because the diffusion_step trained a PLAIN AUTOENCODER, not a denoiser. Root cause, bidirectional PC's SHARED WEIGHTS (encoder = decoder^T) default to reconstructing the input, and the clean-recon interleave reinforces it, so the x_0 target never shifts the map off identity. Possible salvage (no recon interleave / predict noise eps / stronger denoising target) but the shared-weight tendency is fundamental. THREE clean nulls now on the mean-collapse (A deterministic HF, B1 Langevin EBM, B3 diffusion), each with a clear mechanistic reason. B3 code stays in the tree (opt-in, byte-identical off)
+
+---
+
 ### 2026-07-12 Approach B1 (noisy-relaxation EBM) is a NULL, samples are pure noise
 - config or command, PC-native EBM: opt-in Langevin noise in update_state (noise_temp=0 byte-identical, GATE_MATCH nlayers=88) + ebm_step (chl_step with a noisy CD-1-from-data negative phase), --train-mode ebm. Warm-started from ckpt_gen_best, T0 sweep 50 (job 8878) + 300 (job 8879), 10ep, L4. Retest, deterministic darkness_diag AND sampling (tools/ebm_sample.py, annealed noisy relaxation, image grids)
 - result, training STABLE (energy 0.013-0.020, states bounded 118-141, weight-norm+noise+clip contained it, TRAIN_DONE both). But GENERATION FAILS both ways. Deterministic darkness_diag on the EBM ckpt is WORSE than plain CHL (0.282 brightness / 0.134 contrast vs 0.40/0.24) -- reading the mode of an EBM is degenerate. SAMPLING (noisy relaxation) gives PURE NOISE, samples mean ~0 (vs true 0.32), std 0.55 (T0=50) / 1.34 (T0=300) vs true 0.22, values -5.7..+6.2 far outside [0,1]; the image grid is RGB static with zero structure at both T0

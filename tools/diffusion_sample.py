@@ -62,18 +62,30 @@ def main():
     print(f"ckpt={a.ckpt} levels={a.levels} sigma=[{a.sigma_min},{a.sigma_max}] k={a.k}", flush=True)
     print(f"TRUE mean={img.mean():.4f} std={img.std():.4f}", flush=True)
     m = build_restore(a.ckpt, T(img), T(txt), T(mask), wn)
-    conv1 = [L for L in m._image_path_layers if getattr(L, "prev_layer", None) is m.img_input][0]
+    latent_ids = set()
+    for a_, b_ in m._shared_latent_pairs:
+        latent_ids.add(id(a_)); latent_ids.add(id(b_))
+    decode = [L for L in m._image_path_layers
+              if hasattr(L, "update_wts") and id(L) not in latent_ids and L is not m.img_input]
 
     draws = []
     for d in range(a.draws):
         x = (sigmas[-1] * np.random.normal(size=img.shape)).astype(np.float32)   # x_N, pure noise
         for i in reversed(range(a.levels)):                                       # t = N..1
+            # ENCODE x_t (+caption) -> latent (latent then held fixed)
             m.img_input.set_state(T(x)); m.img_input.is_clamped = True; m.txt_input.is_clamped = True
             m.pass_through(T(x), T(txt), T(mask))
             for _ in range(a.k):
                 for L in m.trainable_layers:
                     L.update_state()
-            x0_hat = conv1.predict_prev().numpy()
+            # DECODE -> x0_hat: free the image and relax the decode (latent fixed) so it settles to
+            # the decode's clean-image prediction, which is what the training targeted.
+            m.img_input.is_clamped = False
+            for _ in range(a.k):
+                for L in decode:
+                    L.update_state()
+                m.img_input.update_state()
+            x0_hat = np.clip(m.img_input.predict_next().numpy(), 0.0, 1.0)
             if i > 0:
                 x = (x0_hat + sigmas[i - 1] * np.random.normal(size=img.shape)).astype(np.float32)
             else:
