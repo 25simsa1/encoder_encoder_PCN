@@ -211,6 +211,56 @@ def ebm_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, noise_t0):
 
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
+def diffusion_step(m, img_np, txt_np, mask_np, k0, k2, gen_lr, sigma_t):
+    """Diffusion denoising step (PC-native): encode a NOISED image x_t = x_0 + sigma_t*eps together
+    with the caption into the latent, then take the class's local weight step to train the decode
+    toward the CLEAN x_0. A denoising autoencoder, sharp for small sigma_t; positive-only (no
+    contrast). Because the latent is conditioned on x_t (not only the under-determined caption
+    latent), the target is sharp for small noise. No backprop, no separate decoder, no optimizer."""
+    T = tf.convert_to_tensor
+    img = T(img_np); txt = T(txt_np); mask = T(mask_np)
+    x_t = img + sigma_t * tf.random.normal(img.shape)
+    pairs = m._shared_latent_pairs
+    latent_ids = set()
+    for a_, b_ in pairs:
+        latent_ids.add(id(a_)); latent_ids.add(id(b_))
+    decode = [L for L in m._image_path_layers
+              if hasattr(L, "update_wts") and id(L) not in latent_ids and L is not m.img_input]
+
+    def _weight_step(signed_lr):
+        orig = [(L, L.learning_rate, getattr(L, "bias_lr", None), getattr(L, "weight_decay", None)) for L in decode]
+        for L in decode:
+            L.learning_rate = signed_lr
+            if hasattr(L, "bias_lr"):
+                L.bias_lr = signed_lr
+            if hasattr(L, "weight_decay"):
+                L.weight_decay = 0.0
+        for L in decode:
+            L.update_wts(); L.update_b()
+        for L, lr0, blr0, wd0 in orig:
+            L.learning_rate = lr0
+            if blr0 is not None:
+                L.bias_lr = blr0
+            if wd0 is not None:
+                L.weight_decay = wd0
+
+    # ENCODE phase: clamp the NOISED image x_t + caption, relax all states so the latent encodes x_t
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+    m.pass_through(x_t, txt, mask)
+    for _ in range(k0):
+        for L in m.trainable_layers:
+            L.update_state()
+    # latents now encode x_t + caption; held fixed (excluded from the decode loop below)
+
+    # TARGET phase: clamp img_input to the CLEAN x_0, relax the decode (latent fixed), learn toward x_0
+    m.img_input.set_state(img); m.img_input.is_clamped = True
+    for _ in range(k2):
+        for L in decode:
+            L.update_state()
+    _weight_step(+gen_lr)
+
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+
 def infonce_relax_step(m, img, txt, mask, relax, lam, tau):
     """Relax-then-step with an InfoNCE error injected at the deepest branch codes each
     relax substep, then the existing local LARS weight step. Eager (does not use the
@@ -242,7 +292,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -251,6 +301,9 @@ def main():
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
+    ap.add_argument("--diff-levels", type=int, default=10)    # diffusion noise levels
+    ap.add_argument("--diff-sigma-min", type=float, default=0.05)
+    ap.add_argument("--diff-sigma-max", type=float, default=0.8)
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -319,6 +372,7 @@ def main():
         best_mgr.save()
         if wn_best_mgr is not None: wn_best_mgr.save()
 
+    diff_sigmas = np.geomspace(a.diff_sigma_min, a.diff_sigma_max, a.diff_levels).astype(np.float32)
     N = img.shape[0]; step = 0; t0 = time.time()
     ia, il = 0.0, 0.0
     for ep in range(a.epochs):
@@ -343,6 +397,10 @@ def main():
                 ebm_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
                          a.gen_lr or a.lr, a.noise_temp)
+            elif a.train_mode == "diffusion" and step % a.gen_every == 0:
+                sig = float(diff_sigmas[np.random.randint(len(diff_sigmas))])
+                diffusion_step(m, img[bi], txt[bi], mask[bi],
+                               a.gen_relax_k0 or a.relax, a.gen_relax_k2 or a.relax, a.gen_lr or a.lr, sig)
             step += 1
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
