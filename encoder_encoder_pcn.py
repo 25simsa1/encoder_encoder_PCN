@@ -20,6 +20,7 @@ class InputPCNLayer:
         self.learning_rate = learning_rate
         self.state_lr = learning_rate   # inference/relaxation rate (decoupled from weight lr)
         self.bias_lr = learning_rate    # kept for uniform driver setup (input has no bias)
+        self.noise_temp = 0.0           # Langevin noise temperature for sampling; 0 = off (deterministic)
 
     def update_state(self):
         if not self.is_clamped:
@@ -40,6 +41,9 @@ class InputPCNLayer:
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
                 self.state.assign_sub(self.state_lr * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
+            if self.noise_temp > 0.0:
+                # Langevin noise: turns the deterministic image relaxation into sampling.
+                self.state.assign_add(tf.sqrt(2.0*self.state_lr*self.noise_temp) * tf.random.normal(self.state.shape))
 
     def update_wts(self):
         pass # there is no wts

@@ -34,6 +34,7 @@ class DensePCNLayer:
         self.share_state_layer = share_state_layer
         self.weight_norm = False          # plain Python bool
         self.g_mag = None                 # per-output-unit magnitude, created by enable_weight_norm
+        self.noise_temp = 0.0             # Langevin noise temperature for sampling; 0 = off (deterministic)
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -112,6 +113,9 @@ class DensePCNLayer:
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
+            if self.noise_temp > 0.0:
+                # Langevin noise: turns the deterministic relaxation into sampling of the energy.
+                self.state.assign_add(tf.sqrt(2.0*self.state_lr*self.noise_temp) * tf.random.normal(self.state.shape))
             if self.state_clip != float('inf'):
                 self.state.assign(tf.clip_by_value(self.state, -self.state_clip, self.state_clip))
     # pred_err = state - pred

@@ -145,6 +145,72 @@ def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr):
     # restore the recon clamp config for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
+def ebm_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, noise_t0):
+    """Contrastive-divergence EBM step (PC-native): CHL with a NOISY CD-1-from-data negative
+    phase. Same structure as chl_step; the only change is the negative phase starts at the TRUE
+    image and relaxes with ANNEALED Langevin noise (a model SAMPLE) instead of the deterministic
+    mean, so the local contrast (anti-learn the sample, learn the data) sharpens the energy into a
+    proper EBM. Sampling is the noise term in update_state; the weight rule is the class's own
+    local update_wts. No backprop, no separate decoder. Ends in the recon clamp config."""
+    T = tf.convert_to_tensor
+    img = T(img_np); txt = T(txt_np); mask = T(mask_np)
+    pairs = m._shared_latent_pairs
+    latent_ids = set()
+    for a_, b_ in pairs:
+        latent_ids.add(id(a_)); latent_ids.add(id(b_))
+    decode = [L for L in m._image_path_layers
+              if hasattr(L, "update_wts") and id(L) not in latent_ids and L is not m.img_input]
+    noised = decode + [m.img_input]   # the free states sampled in the negative phase
+
+    def _weight_step(signed_lr):
+        orig = [(L, L.learning_rate, getattr(L, "bias_lr", None), getattr(L, "weight_decay", None)) for L in decode]
+        for L in decode:
+            L.learning_rate = signed_lr
+            if hasattr(L, "bias_lr"):
+                L.bias_lr = signed_lr
+            if hasattr(L, "weight_decay"):
+                L.weight_decay = 0.0
+        for L in decode:
+            L.update_wts(); L.update_b()
+        for L, lr0, blr0, wd0 in orig:
+            L.learning_rate = lr0
+            if blr0 is not None:
+                L.bias_lr = blr0
+            if wd0 is not None:
+                L.weight_decay = wd0
+
+    # Phase 0: text-drive the shared latents (image zeros, unclamped, full relax)
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+    m.pass_through(tf.zeros_like(img), txt, mask)
+    m.img_input.is_clamped = False
+    for _ in range(k0):
+        for L in m.trainable_layers:
+            L.update_state()
+        m.img_input.update_state()
+
+    # NEGATIVE phase (CD-1 from data): start at the true image, free it, noisy-relax the decode
+    # with an annealed temperature to draw a SAMPLE, then ANTI-LEARN.
+    m.img_input.set_state(img); m.img_input.is_clamped = False
+    for i in range(k1):
+        t = noise_t0 * (1.0 - i / float(max(1, k1)))   # linear anneal T0 -> ~0
+        for L in noised:
+            L.noise_temp = t
+        for L in decode:
+            L.update_state()
+        m.img_input.update_state()
+    for L in noised:
+        L.noise_temp = 0.0                              # reset so the clamped/recon relax is noise-free
+    _weight_step(-gen_lr)
+
+    # POSITIVE phase: latents fixed, img_input clamped to the TRUE image, deterministic relax, LEARN
+    m.img_input.set_state(img); m.img_input.is_clamped = True
+    for _ in range(k2):
+        for L in decode:
+            L.update_state()
+    _weight_step(+gen_lr)
+
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+
 def infonce_relax_step(m, img, txt, mask, relax, lam, tau):
     """Relax-then-step with an InfoNCE error injected at the deepest branch codes each
     relax substep, then the existing local LARS weight step. Eager (does not use the
@@ -176,7 +242,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -184,6 +250,7 @@ def main():
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
+    ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
     a = ap.parse_args()
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
@@ -272,6 +339,10 @@ def main():
                 chl_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
                          a.gen_lr or a.lr)
+            elif a.train_mode == "ebm" and step % a.gen_every == 0:
+                ebm_step(m, img[bi], txt[bi], mask[bi],
+                         a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
+                         a.gen_lr or a.lr, a.noise_temp)
             step += 1
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
