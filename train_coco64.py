@@ -80,11 +80,17 @@ def generative_step(m, img_np, txt_np, mask_np, k1, k2, gen_lr=None):
     # restore the recon clamp config (image+text clamped, latents unclamped) for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
-def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr):
+def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text"):
     """Contrastive-Hebbian generative step (PC-native, no backprop, no separate decoder).
-    Phase 0: caption clamped, image=zeros unclamped, relax k0 so the shared latents become
-    text-set; then HOLD the latents fixed (unclamped but excluded from the decode loops) for
-    both phases below, so the contrast varies only the image.
+    Phase 0: set the shared latents, then HOLD them fixed (unclamped but excluded from the
+    decode loops) for both phases below, so the contrast varies only the image.
+      latents="text" (default): caption clamped, image=zeros unclamped, relax k0 -> text-set
+        latents (the original CHL; ill-posed target, the conditional mean over images).
+      latents="image": BOTH clamped (recon config), relax k0 -> IMAGE-set latents. The
+        latent-autoencoder variant: the latents identify the image, so the conditional mean
+        given them IS the true image and the contrast trains TOP-DOWN SELF-SUFFICIENCY on a
+        well-posed target. The free phase starts the image from zeros so the anti-learned
+        sample is a genuine standalone top-down generation.
     FREE phase: latents fixed, image FREE, relax the decode k1 -> the standalone generation;
     anti-learn it (decode weight step with -gen_lr, weight decay off).
     CLAMPED phase: same fixed latents, img_input clamped to the TRUE image, relax the decode
@@ -117,15 +123,25 @@ def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr):
             if wd0 is not None:
                 L.weight_decay = wd0
 
-    # Phase 0: text-drive the shared latents (image zeros, unclamped, full relax)
-    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
-    m.pass_through(tf.zeros_like(img), txt, mask)
-    m.img_input.is_clamped = False
-    for _ in range(k0):
-        for L in m.trainable_layers:
-            L.update_state()
-        m.img_input.update_state()
-    # latents are now text-set; they stay unclamped but are excluded from the decode loops (fixed)
+    if latents == "image":
+        # Phase 0 (image-set): BOTH clamped (recon config), relax so the latents encode THIS image
+        m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+        m.pass_through(img, txt, mask)
+        for _ in range(k0):
+            for L in m.trainable_layers:
+                L.update_state()
+        # the free phase must be a standalone top-down generation, so start the image from zeros
+        m.img_input.set_state(tf.zeros_like(img))
+    else:
+        # Phase 0: text-drive the shared latents (image zeros, unclamped, full relax)
+        m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+        m.pass_through(tf.zeros_like(img), txt, mask)
+        m.img_input.is_clamped = False
+        for _ in range(k0):
+            for L in m.trainable_layers:
+                L.update_state()
+            m.img_input.update_state()
+    # latents are now set; they stay unclamped but are excluded from the decode loops (fixed)
 
     # FREE phase: latents fixed, image FREE, relax the decode, then ANTI-LEARN
     m.img_input.is_clamped = False
@@ -298,6 +314,7 @@ def main():
     ap.add_argument("--gen-relax-k1", type=int, default=None)
     ap.add_argument("--gen-relax-k2", type=int, default=None)
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
+    ap.add_argument("--gen-latents", default="text", choices=["text", "image"])   # chl phase-0 latent source
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
@@ -392,7 +409,7 @@ def main():
             elif a.train_mode == "chl" and step % a.gen_every == 0:
                 chl_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
-                         a.gen_lr or a.lr)
+                         a.gen_lr or a.lr, a.gen_latents)
             elif a.train_mode == "ebm" and step % a.gen_every == 0:
                 ebm_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
