@@ -80,7 +80,7 @@ def generative_step(m, img_np, txt_np, mask_np, k1, k2, gen_lr=None):
     # restore the recon clamp config (image+text clamped, latents unclamped) for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
-def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text"):
+def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text", free_pi_bu=None, free_state_lr=None):
     """Contrastive-Hebbian generative step (PC-native, no backprop, no separate decoder).
     Phase 0: set the shared latents, then HOLD them fixed (unclamped but excluded from the
     decode loops) for both phases below, so the contrast varies only the image.
@@ -143,12 +143,30 @@ def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text"):
             m.img_input.update_state()
     # latents are now set; they stay unclamped but are excluded from the decode loops (fixed)
 
-    # FREE phase: latents fixed, image FREE, relax the decode, then ANTI-LEARN
+    # FREE phase: latents fixed, image FREE, relax the decode, then ANTI-LEARN.
+    # free_pi_bu / free_state_lr (both None = byte-identical default) run this phase
+    # top-down-dominant at an adequate rate, so the free sample actually EXPRESSES the
+    # current top-down cascade (rate-starved at the built state_lr it stays ~zero and the
+    # contrast has nothing to calibrate against).
     m.img_input.is_clamped = False
+    if free_pi_bu is not None:
+        for L in decode:
+            L.pi_bu = free_pi_bu
+    orig_slr = None
+    if free_state_lr is not None:
+        orig_slr = [(L, L.state_lr) for L in decode] + [(m.img_input, m.img_input.state_lr)]
+        for L, _ in orig_slr:
+            L.state_lr = free_state_lr
     for _ in range(k1):
         for L in decode:
             L.update_state()
         m.img_input.update_state()
+    if free_pi_bu is not None:
+        for L in decode:
+            L.pi_bu = 1.0
+    if orig_slr is not None:
+        for L, s in orig_slr:
+            L.state_lr = s
     _weight_step(-gen_lr)
 
     # CLAMPED phase: latents fixed, img_input clamped to the TRUE image, relax the decode, then LEARN
@@ -315,6 +333,8 @@ def main():
     ap.add_argument("--gen-relax-k2", type=int, default=None)
     ap.add_argument("--gen-lr", type=float, default=None)   # gentler rate for the generative weight step only
     ap.add_argument("--gen-latents", default="text", choices=["text", "image"])   # chl phase-0 latent source
+    ap.add_argument("--free-pi-bu", type=float, default=None)      # chl free-phase generative precision; None = default
+    ap.add_argument("--free-state-lr", type=float, default=None)   # chl free-phase relaxation rate; None = as built
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
@@ -409,7 +429,7 @@ def main():
             elif a.train_mode == "chl" and step % a.gen_every == 0:
                 chl_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
-                         a.gen_lr or a.lr, a.gen_latents)
+                         a.gen_lr or a.lr, a.gen_latents, a.free_pi_bu, a.free_state_lr)
             elif a.train_mode == "ebm" and step % a.gen_every == 0:
                 ebm_step(m, img[bi], txt[bi], mask[bi],
                          a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax, a.gen_relax_k2 or a.relax,
