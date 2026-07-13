@@ -41,6 +41,8 @@ class Conv2DPCNLayer:
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
         self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
+        self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
+        self.wts_td = None                # the top-down weights, created by enable_untied
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -64,6 +66,20 @@ class Conv2DPCNLayer:
         self.g_mag = tf.Variable(norm, trainable=False)
         self.weight_norm = True
 
+    def weight_td(self):
+        # The top-down prediction kernel. Tied (default) = the bottom-up weight, byte-identical.
+        # Untied = this edge's own wts_td, trained by the d_pred local error.
+        if not self.untied:
+            return self.weight()
+        return self.wts_td
+
+    def enable_untied(self):
+        # Seamless untie: wts_td starts as a copy of wts, so predict_prev is unchanged at enable.
+        if self.wts is None:
+            raise RuntimeError("realize weights (run a forward pass) before enabling untied")
+        self.wts_td = tf.Variable(tf.identity(self.wts), trainable=False)
+        self.untied = True
+
     def predict_prev(self):
         # The decode transpose must reconstruct net_in's INPUT shape. Under VALID
         # the forward conv shrank the map by (kernel-1), so the transpose expands
@@ -75,10 +91,10 @@ class Conv2DPCNLayer:
                 output_shape = (self.output_shape[0], self.output_shape[1], self.output_shape[2], self.wts.shape[-2])
             else:
                 output_shape = (self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.weight(), padding=self.padding, strides=1, output_shape=output_shape)
+            return tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=1, output_shape=output_shape)
         else:
             output_shape = (self.output_shape[0], self.input_shape[1], self.input_shape[2], self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.weight(), padding=self.padding, strides=self.stride, output_shape=output_shape)
+            return tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=self.stride, output_shape=output_shape)
     
     def predict_next(self):
         return self.state
@@ -136,18 +152,18 @@ class Conv2DPCNLayer:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())),
-                        self.weight(), strides=self.stride, padding=self.padding)
+                        self.weight_td(), strides=self.stride, padding=self.padding)
                 elif self.activation == 'gelu':
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
-                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.gelu(layer.predict_next()) - tf.nn.gelu(self.predict_prev())), self.weight(), strides=self.stride, padding=self.padding)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.gelu(layer.predict_next()) - tf.nn.gelu(self.predict_prev())), self.weight_td(), strides=self.stride, padding=self.padding)
                 elif self.activation == 'silu':
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
-                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.silu(layer.predict_next()) - tf.nn.silu(self.predict_prev())), self.weight(), strides=self.stride, padding=self.padding)
+                    d_pred += tf.nn.conv2d(-multiplier*(tf.nn.silu(layer.predict_next()) - tf.nn.silu(self.predict_prev())), self.weight_td(), strides=self.stride, padding=self.padding)
                 else:
                     multiplier = 1.0 + tf.cast(layer.is_clamped, tf.float32)
                     d_pred += tf.nn.conv2d(
                         -multiplier*(layer.predict_next() - self.predict_prev()),
-                        self.weight(), strides=self.stride, padding=self.padding)
+                        self.weight_td(), strides=self.stride, padding=self.padding)
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.state_lr * self.pi_bu * ((d_pred+d_state)/2.))
@@ -203,7 +219,18 @@ class Conv2DPCNLayer:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(tf.nn.silu(pred)-tf.nn.silu(self.prev_layer.predict_next())), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
                 else:
                     d_pred += tf.raw_ops.Conv2DBackpropFilter(input=self._hf(pred-self.prev_layer.predict_next()), filter_sizes=self.wts.shape, out_backprop=self.predict_next(), strides=[1, self.stride, self.stride, 1], padding=self.padding)
-            if not self.is_clamped or not self.prev_layer.is_clamped:
+            if self.untied:
+                # untied: each kernel gets ONE duty and ONE local error, nothing competes.
+                wd = self.weight_decay
+                if not self.prev_layer.is_clamped:
+                    wn = tf.norm(self.wts)
+                    trust = tf.minimum(wn / (tf.norm(d_state) + wd * wn + 1e-6), self.trust_cap)
+                    self.wts.assign_sub(self.learning_rate * trust * (d_state + wd * self.wts))
+                if not self.is_clamped:
+                    wn2 = tf.norm(self.wts_td)
+                    trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
+                    self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+            elif not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
                 g = (d_state + d_pred) / denom
                 wd = self.weight_decay

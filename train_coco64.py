@@ -411,6 +411,7 @@ def main():
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
     ap.add_argument("--isometry", type=float, default=0.0)    # soft orthogonalization rate on the image-path weights; 0 = off
+    ap.add_argument("--untied", action="store_true")          # untied top-down prediction weights on the image path
     ap.add_argument("--diff-levels", type=int, default=10)    # diffusion noise levels
     ap.add_argument("--diff-sigma-min", type=float, default=0.05)
     ap.add_argument("--diff-sigma-max", type=float, default=0.8)
@@ -481,12 +482,31 @@ def main():
                 wn_ckpt.restore(wn_mgr.latest_checkpoint)   # restore trained magnitudes over the ||wts||-derived ones
                 print("resumed wn", wn_mgr.latest_checkpoint, flush=True)
 
+    TD_W = []
+    td_mgr = td_best_mgr = None
+    if a.untied:
+        ntd = 0
+        for L in m._image_path_layers:
+            if hasattr(L, "enable_untied") and getattr(L, "wts", None) is not None:
+                L.enable_untied(); ntd += 1
+        TD_W = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]
+        print(f"untied top-down weights on {ntd} image-path layers", flush=True)
+        if TD_W:
+            td_ckpt = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD_W)})
+            td_mgr = tf.train.CheckpointManager(td_ckpt, a.ckpt + "_td", max_to_keep=1)
+            td_best_mgr = tf.train.CheckpointManager(td_ckpt, a.ckpt + "_best_td", max_to_keep=1)
+            if a.resume and td_mgr.latest_checkpoint:
+                td_ckpt.restore(td_mgr.latest_checkpoint)   # restore trained top-down weights over the copies
+                print("resumed td", td_mgr.latest_checkpoint, flush=True)
+
     def save_latest():
         mgr.save()
         if wn_mgr is not None: wn_mgr.save()
+        if td_mgr is not None: td_mgr.save()
     def save_best():
         best_mgr.save()
         if wn_best_mgr is not None: wn_best_mgr.save()
+        if td_best_mgr is not None: td_best_mgr.save()
 
     diff_sigmas = np.geomspace(a.diff_sigma_min, a.diff_sigma_max, a.diff_levels).astype(np.float32)
     N = img.shape[0]; step = 0; t0 = time.time()

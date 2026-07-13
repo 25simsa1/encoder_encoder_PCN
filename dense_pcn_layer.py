@@ -38,6 +38,8 @@ class DensePCNLayer:
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
         self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
+        self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
+        self.wts_td = None                # the top-down weights, created by enable_untied
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -62,8 +64,23 @@ class DensePCNLayer:
         self.g_mag = tf.Variable(norm, trainable=False)
         self.weight_norm = True
 
+    def weight_td(self):
+        # The top-down prediction weight. Tied (default) = the same weight as bottom-up,
+        # byte-identical. Untied = this edge's own wts_td, trained by the d_pred local error.
+        if not self.untied:
+            return self.weight()
+        return self.wts_td
+
+    def enable_untied(self):
+        # Seamless untie: wts_td starts as a copy of wts, so predict_prev is unchanged at
+        # enable time; the two matrices then diverge under their separate local errors.
+        if self.wts is None:
+            raise RuntimeError("realize weights (run a forward pass) before enabling untied")
+        self.wts_td = tf.Variable(tf.identity(self.wts), trainable=False)
+        self.untied = True
+
     def predict_prev(self):
-        return (self.state - self.b) @ tf.linalg.matrix_transpose(self.weight())
+        return (self.state - self.b) @ tf.linalg.matrix_transpose(self.weight_td())
     
     def predict_next(self):
         return self.state
@@ -110,9 +127,9 @@ class DensePCNLayer:
                 d_state = tf.zeros_like(self.state)
                 layer = self.prev_layer
                 if self.activation == 'relu':
-                    d_pred += -(1+int(layer.is_clamped))*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.weight()
+                    d_pred += -(1+int(layer.is_clamped))*(tf.nn.relu(layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.weight_td()
                 else:
-                    d_pred += -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()) @ self.weight()
+                    d_pred += -(1+int(layer.is_clamped))*(layer.predict_next() - self.predict_prev()) @ self.weight_td()
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
                 self.state.assign_sub(self.state_lr * self.pi_bu * ((d_pred+d_state)/2.))
@@ -148,7 +165,18 @@ class DensePCNLayer:
                 else:
                     x = tf.linalg.matrix_transpose(self.prev_layer.predict_next() - self.predict_prev()) @ -(self.predict_next()-self.b)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 2))
-            if not self.is_clamped or not self.prev_layer.is_clamped:
+            if self.untied:
+                # untied: each matrix gets ONE duty and ONE local error, nothing competes.
+                wd = self.weight_decay
+                if not self.prev_layer.is_clamped:
+                    wn = tf.norm(self.wts)
+                    trust = tf.minimum(wn / (tf.norm(d_state) + wd * wn + 1e-6), self.trust_cap)
+                    self.wts.assign_sub(self.learning_rate * trust * (d_state + wd * self.wts))
+                if not self.is_clamped:
+                    wn2 = tf.norm(self.wts_td)
+                    trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
+                    self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+            elif not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32)
                 g = (d_state + d_pred) / denom
                 wd = self.weight_decay
@@ -212,10 +240,10 @@ class DensePCNLayer:
                     d_state += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped:
                 if self.activation == 'relu':
-                    x = tf.reduce_mean((tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.weight(), axis=0)
+                    x = tf.reduce_mean((tf.nn.relu(self.prev_layer.predict_next()) - tf.nn.relu(self.predict_prev())) @ self.weight_td(), axis=0)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
                 else:
-                    x = tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.weight(), axis=0)
+                    x = tf.reduce_mean((self.prev_layer.predict_next() - self.predict_prev()) @ self.weight_td(), axis=0)
                     d_pred += tf.reduce_mean(x, axis=tf.range(0, tf.rank(x) - 1))
             if not self.is_clamped or not self.prev_layer.is_clamped:
                 self.b.assign_sub(self.bias_lr*(d_state+d_pred)/tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32))
