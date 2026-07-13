@@ -37,6 +37,23 @@ def test_iso_flow_orthogonalizes_dense():
     np.testing.assert_allclose(cols, np.ones_like(cols), atol=0.15)   # column norms -> 1
 
 
+def test_iso_flow_orthogonalizes_expanding_dense():
+    # expanding edge (out > in): the flow targets WWt = I over the SMALL side (rows), the
+    # left-inverse condition; also guards the int32/eye blowup crash (eye is over in, not out)
+    prev = DensePCNLayer(4, 1e-3, "linear")
+    L = DensePCNLayer(16, 1e-3, "linear", prev_layer=prev)   # (4,16), out > in
+    x = tf.random.normal((8, 4))
+    prev(x, set_state=True)
+    L(prev.predict_next(), set_state=True)
+    L.iso_eta = 0.05
+    def rerr(w):
+        return float(tf.norm(w @ tf.linalg.matrix_transpose(w) - tf.eye(int(w.shape[0]))))
+    e0 = rerr(L.wts)
+    for _ in range(200):
+        L.update_wts()
+    assert rerr(L.wts) < 0.3 * e0
+
+
 def test_iso_flow_orthogonalizes_conv_kernel():
     prev = Conv2DPCNLayer(3, (3, 3), 1e-3, "linear", padding="SAME")
     L = Conv2DPCNLayer(5, (3, 3), 1e-3, "linear", padding="SAME", prev_layer=prev)   # K (27,5)

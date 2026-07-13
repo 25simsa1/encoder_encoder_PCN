@@ -232,11 +232,17 @@ class Conv2DPCNLayer:
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
                 if self.iso_eta != 0.0:
                     # local soft orthogonalization (isometry constraint) via the standard kernel
-                    # surrogate: reshape the kernel to (kh*kw*in, out) and run K += eta*K(I - KtK),
-                    # fixed point KtK = I. Uses only this layer's own kernel, no backprop.
+                    # surrogate: reshape the kernel to (kh*kw*in, out) and flow toward the
+                    # semi-orthogonal manifold over the SMALLER side (KtK = I when rows >= cols,
+                    # KKt = I when cols > rows, e.g. the widening bottom conv). Local, no backprop.
                     kmat = tf.reshape(self.wts, (-1, int(self.wts.shape[-1])))
-                    ktk = tf.linalg.matrix_transpose(kmat) @ kmat
-                    kmat = kmat + self.iso_eta * (kmat @ (tf.eye(int(self.wts.shape[-1])) - ktk))
+                    kr, kc = int(kmat.shape[0]), int(kmat.shape[-1])
+                    if kc <= kr:
+                        gram = tf.linalg.matrix_transpose(kmat) @ kmat
+                        kmat = kmat + self.iso_eta * (kmat @ (tf.eye(kc) - gram))
+                    else:
+                        gram = kmat @ tf.linalg.matrix_transpose(kmat)
+                        kmat = kmat + self.iso_eta * ((tf.eye(kr) - gram) @ kmat)
                     self.wts.assign(tf.reshape(kmat, self.wts.shape))
 
     def update_b(self):
