@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-13 strong-pressure cascade destabilizes instantly, the calibration family is CLOSED
+- config or command, --train-mode cascade at recon-equal pressure (gen-lr 1e-3, gen-every 1, 40x the gentle cell), fresh warm-start, job 9047 on an n15 HEQ slice
+- result, wrecked in 50 steps (energy 20898, states pinned at 400 by the first print), even faster than the end-to-end contrast's 150. Cancelled. The pressure curve for per-edge calibration is complete, gentle (1e-4 every 4th) = stable but out-anchored ~40 to 1 by the recon interleave and moves nothing; strong (recon-equal) = the calibration and recon steps fight over the same shared weights at equal strength and the off-manifold cascade targets tear the recon equilibrium apart immediately
+- takeaway, the same empty-window shape has now appeared for the THIRD training family (end-to-end CHL contrast, expressing-free-phase calibration, per-edge cascade-consistency), gentle is ineffective, strong destabilizes, and the middle never carries. The root is the SHARED WEIGHTS, any objective that pulls them toward top-down duty at effective strength rips them off the bottom-up equilibrium the recon anchor needs. The calibration family is CLOSED. Remaining, the isometry repair (a constraint shaping the geometry DURING recon rather than an objective fighting it, the one idea that does not enter this tug-of-war) or banking
+
+---
+
 ### 2026-07-13 cascade-consistency training is STABLE but INEFFECTIVE at gentle pressure
 - config or command, --train-mode cascade (per-edge alignment of the top-down cascade to the recon-state targets, d_pred-only local steps, no anti-learn), job 8954 warm-started from ckpt_gen_best, gen-lr 1e-4 gen-every 4, 12ep with weight-norm; retest job 9046 on an n15 HEQ slice (latent_source_diag at the calibrated pi schedule AND the boost baseline)
 - result, training SURVIVED all 12 epochs (energy 0.021, states bounded 156, the only calibration approach that has not destabilized). But the retest is a wash, the pi-schedule readout is STILL content-blind saturation (image-set mean 5.57, mse 0.4496, identical to text-set; the cascade gain came down from ~7.7 to ~5.6 and nothing else changed) and the boost readout is the SAME dim template as before training (0.52/0.24, mse 0.1005 vs 0.0985). Likely why, the gentle calibration (1e-4 every 4th step) is out-anchored ~40 to 1 by the interleaved recon steps (1e-3 every step) on the SAME shared weights, and one W is being asked to serve bottom-up prediction and top-down inversion at different operating points
