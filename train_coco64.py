@@ -410,6 +410,7 @@ def main():
     ap.add_argument("--weight-norm", action="store_true")   # PC-native weight-norm stabilizer on conv/dense layers
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
+    ap.add_argument("--isometry", type=float, default=0.0)    # soft orthogonalization rate on the image-path weights; 0 = off
     ap.add_argument("--diff-levels", type=int, default=10)    # diffusion noise levels
     ap.add_argument("--diff-sigma-min", type=float, default=0.05)
     ap.add_argument("--diff-sigma-max", type=float, default=0.8)
@@ -444,6 +445,12 @@ def main():
             if isinstance(L, Conv2DPCNLayer) and getattr(L, "prev_layer", None) is m.img_input:
                 L.hf_gamma = a.hf_weight; nhf += 1
         print(f"hf_weight={a.hf_weight} set on {nhf} bottom conv layer(s)", flush=True)
+    if a.isometry > 0:
+        niso = 0
+        for L in m._image_path_layers:
+            if hasattr(L, "iso_eta") and hasattr(L, "update_wts"):
+                L.iso_eta = a.isometry; niso += 1
+        print(f"isometry={a.isometry} set on {niso} image-path layers", flush=True)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     # realize weights so they can be checkpointed
     b0 = slice(0, a.batch)

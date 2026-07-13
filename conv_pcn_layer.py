@@ -40,6 +40,7 @@ class Conv2DPCNLayer:
         self.noise_temp = 0.0             # Langevin noise temperature for sampling; 0 = off (deterministic)
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
+        self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -229,6 +230,14 @@ class Conv2DPCNLayer:
                     trust = tf.minimum(trust, self.trust_cap)
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
+                if self.iso_eta != 0.0:
+                    # local soft orthogonalization (isometry constraint) via the standard kernel
+                    # surrogate: reshape the kernel to (kh*kw*in, out) and run K += eta*K(I - KtK),
+                    # fixed point KtK = I. Uses only this layer's own kernel, no backprop.
+                    kmat = tf.reshape(self.wts, (-1, int(self.wts.shape[-1])))
+                    ktk = tf.linalg.matrix_transpose(kmat) @ kmat
+                    kmat = kmat + self.iso_eta * (kmat @ (tf.eye(int(self.wts.shape[-1])) - ktk))
+                    self.wts.assign(tf.reshape(kmat, self.wts.shape))
 
     def update_b(self):
         pass # there is no bias

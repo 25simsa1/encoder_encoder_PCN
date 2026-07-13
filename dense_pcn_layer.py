@@ -37,6 +37,7 @@ class DensePCNLayer:
         self.noise_temp = 0.0             # Langevin noise temperature for sampling; 0 = off (deterministic)
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
+        self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -169,6 +170,12 @@ class DensePCNLayer:
                     trust = tf.minimum(trust, self.trust_cap)
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
+                if self.iso_eta != 0.0:
+                    # local soft orthogonalization (isometry constraint): the flow W += eta*W(I - WtW)
+                    # has fixed point WtW = I, making the top-down transpose a right-inverse of the
+                    # bottom-up map. Uses only this layer's own matrix (no error signal, no backprop).
+                    wtw = tf.linalg.matrix_transpose(self.wts) @ self.wts
+                    self.wts.assign_add(self.iso_eta * (self.wts @ (tf.eye(int(self.wts.shape[-1])) - wtw)))
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
