@@ -179,6 +179,78 @@ def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text", fre
     # restore the recon clamp config for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
+def cascade_step(m, img_np, txt_np, mask_np, k0, k1, gen_lr, casc_state_lr):
+    """Cascade-consistency step (PC-native): calibrate each top-down edge against its bounded
+    per-layer recon target. Phase R (targets): recon clamp, relax, snapshot every image-path
+    state (they encode the actual image; latents end image-set and stay held by exclusion).
+    Phase C (cascade): zero the decode+image states WITHOUT re-running pass_through (latents
+    keep their image-set states), relax top-down-dominant (pi_bu=0, adequate rate) -> the
+    actual current cascade expression. Phase W (alignment): per edge, clamp the layer below at
+    its recon target, leave this layer at its cascade value, and take the class's local
+    d_pred-only weight step (update_wts with prev clamped), aligning predict_prev(cascade
+    input) to the recon target one layer below. Bounded one-layer errors, no end-to-end
+    compounding, no anti-learn. No backprop, no separate decoder. Ends in the recon config."""
+    T = tf.convert_to_tensor
+    img = T(img_np); txt = T(txt_np); mask = T(mask_np)
+    pairs = m._shared_latent_pairs
+    latent_ids = set()
+    for a_, b_ in pairs:
+        latent_ids.add(id(a_)); latent_ids.add(id(b_))
+    decode = [L for L in m._image_path_layers
+              if hasattr(L, "update_wts") and id(L) not in latent_ids and L is not m.img_input]
+    snap_layers = decode + [m.img_input] + [a_ for a_, _ in pairs]
+
+    # Phase R: recon targets (both clamped, relax; latents become image-set and stay held)
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+    m.pass_through(img, txt, mask)
+    for _ in range(k0):
+        for L in m.trainable_layers:
+            L.update_state()
+    targets = {id(L): tf.identity(L.state) for L in snap_layers if getattr(L, "state", None) is not None}
+
+    # Phase C: express the cascade from the image-set latents (no pass_through, latents untouched)
+    for L in decode:
+        if getattr(L, "state", None) is not None:
+            L.state.assign(tf.zeros_like(L.state))
+    m.img_input.set_state(tf.zeros_like(img)); m.img_input.is_clamped = False
+    orig = [(L, L.pi_bu, L.state_lr) for L in decode]
+    for L in decode:
+        L.pi_bu = 0.0; L.state_lr = casc_state_lr
+    islr = m.img_input.state_lr; m.img_input.state_lr = casc_state_lr
+    for _ in range(k1):
+        for L in decode:
+            L.update_state()
+        m.img_input.update_state()
+    for L, pb, sl in orig:
+        L.pi_bu = pb; L.state_lr = sl
+    m.img_input.state_lr = islr
+    cascade = {id(L): tf.identity(L.state) for L in snap_layers if getattr(L, "state", None) is not None}
+
+    # Phase W: per-edge alignment (cascade input above -> recon target below), local d_pred-only step
+    for L in decode:
+        P = getattr(L, "prev_layer", None)
+        if P is None or id(P) not in targets:
+            continue
+        P.state.assign(targets[id(P)]); p_clamped = P.is_clamped; P.is_clamped = True
+        lr0, blr0, wd0 = L.learning_rate, getattr(L, "bias_lr", None), getattr(L, "weight_decay", None)
+        L.learning_rate = gen_lr
+        if blr0 is not None:
+            L.bias_lr = gen_lr
+        if wd0 is not None:
+            L.weight_decay = 0.0
+        L.update_wts(); L.update_b()
+        L.learning_rate = lr0
+        if blr0 is not None:
+            L.bias_lr = blr0
+        if wd0 is not None:
+            L.weight_decay = wd0
+        P.is_clamped = p_clamped
+        P.state.assign(cascade[id(P)])   # restore the cascade value (P is the L-role of another edge)
+
+    # restore the recon config for the next recon step
+    m.img_input.set_state(img)
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+
 def ebm_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, noise_t0):
     """Contrastive-divergence EBM step (PC-native): CHL with a NOISY CD-1-from-data negative
     phase. Same structure as chl_step; the only change is the negative phase starts at the TRUE
@@ -326,7 +398,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -438,6 +510,10 @@ def main():
                 sig = float(diff_sigmas[np.random.randint(len(diff_sigmas))])
                 diffusion_step(m, img[bi], txt[bi], mask[bi],
                                a.gen_relax_k0 or a.relax, a.gen_relax_k2 or a.relax, a.gen_lr or a.lr, sig)
+            elif a.train_mode == "cascade" and step % a.gen_every == 0:
+                cascade_step(m, img[bi], txt[bi], mask[bi],
+                             a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax,
+                             a.gen_lr or a.lr, a.free_state_lr or 0.25)
             step += 1
             if step % a.energy_every == 0:
                 e, mx = energy_stats(m)
