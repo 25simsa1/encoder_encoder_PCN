@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-13 the isometry constraint trains free and stabilizes, but generation is still content-blind, the FINAL null
+- config or command, scaled semi-orthogonalization flow in update_wts (small-side Gram -> c*I, anisotropy killed, scale left to the recipe; two pre-flight fixes, small-side Gram for the expanding 100->98304 inters and the scaled target after the unit target collapsed their natural scale 66x). From-scratch COCO64_GEN recon 15ep --isometry 1e-3 (job 9054, HEQ), then the three-cell retest (job 9058, pi / plain / boost)
+- result, the constraint itself is a WIN, recon reached the SAME floor as unconstrained (0.006) with LOWER bounded states (~80 vs 120-155), i.e. a free stabilizer. But generation is STILL content-blind, the pure-cascade cells saturate exactly as before (mse 0.4496, image-set == text-set), and the boost cell changed amplitude only (image-set now over-drives to blown-out white 3.2x, text-set rose to a brighter 0.64/0.62 template, the best text-set numbers of the campaign but visually the SAME template in every column, and the swaps are still single-code)
+- takeaway, isotropic per-edge geometry fixes the GAIN pathology but content still does not survive the composed cascade, the residual killers being exactly the spec's flagged risks, GELU and the strided downsampling are not inverted by ANY transpose. This was the last mechanism-level swing and it is a null. THE GENERATION CAMPAIGN CLOSES, eight objective/constraint mechanisms and three inference routes, every failure pinned. The transferable wins carry to the ladder, weight-norm (stabilizer), the ISOMETRY CONSTRAINT (a free stabilizer at zero floor cost, directly relevant to the ladder's norm-inflation failure mode), corrected monitoring, and the HEQ scheduling route
+
+---
+
 ### 2026-07-13 strong-pressure cascade destabilizes instantly, the calibration family is CLOSED
 - config or command, --train-mode cascade at recon-equal pressure (gen-lr 1e-3, gen-every 1, 40x the gentle cell), fresh warm-start, job 9047 on an n15 HEQ slice
 - result, wrecked in 50 steps (energy 20898, states pinned at 400 by the first print), even faster than the end-to-end contrast's 150. Cancelled. The pressure curve for per-edge calibration is complete, gentle (1e-4 every 4th) = stable but out-anchored ~40 to 1 by the recon interleave and moves nothing; strong (recon-equal) = the calibration and recon steps fight over the same shared weights at equal strength and the off-manifold cascade targets tear the recon equilibrium apart immediately

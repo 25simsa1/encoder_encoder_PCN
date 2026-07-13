@@ -25,7 +25,11 @@ THE CONTRACTION SWING (user-directed, the last generation lever) RAN AND IS EXHA
 
 THE GENERATION QUESTION IS CLOSED AS A CHARACTERIZED NEGATIVE (pending the lead's sign-off). Campaign tally, seven generative objectives (gen, gentle-lr, CHL, HF-weighted, Langevin EBM, diffusion-in-PC, latent-AE/calibration CHL), two inference routes (the replacement boost and the precision schedules across the rate sweep), every failure with a pinned mechanism, and every mechanism's code opt-in and byte-identical off (gated). The shared-weight bidirectional-PC design at 64px cannot render latent identity top-down and cannot be trained to by any local contrast tried, and the full why is documented in the LOG.
 
-RECOMMENDATION, bank this as the paper's generation chapter and pivot the remaining ~2 months (ICLR 2026-09-20) to the banked coupling-ladder question (does the coupling failure persist 156M -> 7.7B at 8k, latent retrieval vs the >3-in-2000 bar), the paper's secured core.
+THE FINAL SWING (the isometry constraint, user-directed) RAN AND NULLED (2026-07-13). The scaled semi-orthogonalization trains FREE (same 0.006 recon floor, lower bounded states, a genuine stabilizer) and fixes the gain pathology, but generation is still content-blind, the pure cascade saturates and the boost now over-drives to a blown-out field, with the text-set decode a brighter template (0.64/0.62, the campaign's best numbers, still no identity). The residual killers are structural and transpose-independent, GELU and the strided downsampling are not inverted by any transpose.
+
+THE GENERATION CAMPAIGN IS CLOSED. Eight mechanisms (gen, gentle-lr, CHL, HF-weighted, Langevin EBM, diffusion-in-PC, latent-AE/calibration CHL, cascade-consistency, the isometry constraint) and three inference routes (boost, precision schedules, rate sweep), every failure with a pinned mechanism, all code opt-in and inert off. Transferable wins for the paper's core, weight-norm and the isometry constraint are free stabilizers (directly relevant to the ladder's norm-inflation failure mode), plus the corrected monitoring and the HEQ scheduling route.
+
+NEXT, bank the chapter and run the coupling ladder (156M -> 7.7B at 8k vs the >3-in-2000 bar). The big rungs need the whole H200 (frees when the user's other-session p3-control ends); the small rungs and all tooling fit the HEQ slices now.
 
 Separately, the broader banked question (does the coupling failure persist 156M -> 7.7B, judged at 8k against the bar) still stands via the capacity ladder.
 
