@@ -38,6 +38,8 @@ class Conv2DPCNLayer:
         self.g_mag = None                 # per-output-filter magnitude, created by enable_weight_norm
         self.hf_gamma = 0.0               # high-frequency boost on the bottom pixel error; 0 = off
         self.noise_temp = 0.0             # Langevin noise temperature for sampling; 0 = off (deterministic)
+        self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
+        self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -123,7 +125,7 @@ class Conv2DPCNLayer:
                 average_d_pred += tf.cast(layer.pred_loss_d_input(self.predict_next()), tf.float32)
                 average_d_state += (state - pred_state)
             if num_next_layers!=0:
-                self.state.assign_sub(self.state_lr * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
+                self.state.assign_sub(self.state_lr * self.pi_td * ((average_d_pred+average_d_state)/(2.*float(num_next_layers))))
             # pred prev layer & pred from prev layer
             if self.prev_layer is not None:
                 d_pred = tf.zeros_like(self.state)
@@ -147,7 +149,7 @@ class Conv2DPCNLayer:
                         self.weight(), strides=self.stride, padding=self.padding)
                 if not layer.is_clamped:
                     d_state += (self.predict_next() - self(layer.predict_next()))
-                self.state.assign_sub(self.state_lr * ((d_pred+d_state)/2.))
+                self.state.assign_sub(self.state_lr * self.pi_bu * ((d_pred+d_state)/2.))
             if self.noise_temp > 0.0:
                 # Langevin noise: turns the deterministic relaxation into sampling of the energy.
                 self.state.assign_add(tf.sqrt(2.0*self.state_lr*self.noise_temp) * tf.random.normal(self.state.shape))

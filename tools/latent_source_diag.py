@@ -89,6 +89,7 @@ def main():
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--relax-cap", type=int, default=150)   # capture/decode relax steps
     ap.add_argument("--gamma", type=float, default=1.0)     # boost strength; 0 = plain relaxation
+    ap.add_argument("--pi-bu", type=float, default=None)    # generative precision schedule for the decode; None = off
     ap.add_argument("--out", default="latent_source.png")
     a = ap.parse_args()
     global GAMMA
@@ -138,11 +139,17 @@ def main():
         for (a_, _), val in zip(pairs, latents):
             a_.state.assign(val)
         m.img_input.is_clamped = False
+        if a.pi_bu is not None:
+            for L in decode:
+                L.pi_bu = a.pi_bu   # generative precision schedule: top-down-dominant relaxation
         for _ in range(a.relax_cap):
             for L in decode:
                 L.update_state()
             m.img_input.update_state()
             boost(chain, latent_ids)    # boost the decode chain; never the fixed latents
+        if a.pi_bu is not None:
+            for L in decode:
+                L.pi_bu = 1.0       # restore the default so the next capture phase is standard
         gen = m.img_input.predict_next().numpy()
         mse = float(np.mean((np.clip(gen, 0, 1) - img) ** 2))
         print(f"{label}: mean={gen.mean():.4f} std={gen.std():.4f} "
