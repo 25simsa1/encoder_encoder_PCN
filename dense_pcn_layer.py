@@ -171,19 +171,25 @@ class DensePCNLayer:
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
                 if self.iso_eta != 0.0:
-                    # local soft orthogonalization (isometry constraint) over the SMALLER side, so
-                    # the Gram matrix stays small. Contracting edges (in >= out) flow to WtW = I
-                    # (transpose = right-inverse); expanding edges (out > in) flow to WWt = I
-                    # (transpose = left-inverse). Either way both error directions of the edge
-                    # become simultaneously satisfiable. Local (this layer's matrix only), no
-                    # error signal, no backprop.
+                    # local soft SCALED semi-orthogonalization (isometry constraint): drive the
+                    # small-side Gram toward c*I with c the layer's OWN current scale (trace/n),
+                    # killing the anisotropy (what destroys content in the composed top-down
+                    # cascade) while leaving the scale to the recon recipe. The step is a
+                    # relative deviation, bounded by eta regardless of layer scale (forcing
+                    # unit scale collapsed the natural-scale-31 inters 66x in one step and
+                    # diverged). Local (this layer's matrix only), no error signal, no backprop.
                     din, dout = int(self.wts.shape[0]), int(self.wts.shape[-1])
+                    n = min(din, dout)
                     if dout <= din:
                         gram = tf.linalg.matrix_transpose(self.wts) @ self.wts
-                        self.wts.assign_add(self.iso_eta * (self.wts @ (tf.eye(dout) - gram)))
                     else:
                         gram = self.wts @ tf.linalg.matrix_transpose(self.wts)
-                        self.wts.assign_add(self.iso_eta * ((tf.eye(din) - gram) @ self.wts))
+                    c = tf.linalg.trace(gram) / float(n)
+                    dev = (c * tf.eye(n) - gram) / (c + 1e-8)
+                    if dout <= din:
+                        self.wts.assign_add(self.iso_eta * (self.wts @ dev))
+                    else:
+                        self.wts.assign_add(self.iso_eta * (dev @ self.wts))
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2

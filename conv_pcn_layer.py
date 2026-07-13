@@ -231,18 +231,24 @@ class Conv2DPCNLayer:
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
                 if self.iso_eta != 0.0:
-                    # local soft orthogonalization (isometry constraint) via the standard kernel
-                    # surrogate: reshape the kernel to (kh*kw*in, out) and flow toward the
-                    # semi-orthogonal manifold over the SMALLER side (KtK = I when rows >= cols,
-                    # KKt = I when cols > rows, e.g. the widening bottom conv). Local, no backprop.
+                    # local soft SCALED semi-orthogonalization via the kernel surrogate: reshape
+                    # to (kh*kw*in, out), drive the small-side Gram toward c*I with c the
+                    # kernel's own current scale (trace/n), killing anisotropy while leaving the
+                    # scale to the recon recipe. Relative-deviation step, bounded by eta. Local,
+                    # no backprop.
                     kmat = tf.reshape(self.wts, (-1, int(self.wts.shape[-1])))
                     kr, kc = int(kmat.shape[0]), int(kmat.shape[-1])
+                    n = min(kr, kc)
                     if kc <= kr:
                         gram = tf.linalg.matrix_transpose(kmat) @ kmat
-                        kmat = kmat + self.iso_eta * (kmat @ (tf.eye(kc) - gram))
                     else:
                         gram = kmat @ tf.linalg.matrix_transpose(kmat)
-                        kmat = kmat + self.iso_eta * ((tf.eye(kr) - gram) @ kmat)
+                    c = tf.linalg.trace(gram) / float(n)
+                    dev = (c * tf.eye(n) - gram) / (c + 1e-8)
+                    if kc <= kr:
+                        kmat = kmat + self.iso_eta * (kmat @ dev)
+                    else:
+                        kmat = kmat + self.iso_eta * (dev @ kmat)
                     self.wts.assign(tf.reshape(kmat, self.wts.shape))
 
     def update_b(self):
