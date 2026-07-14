@@ -73,21 +73,38 @@ def decode_chain(ui):
     return chain
 
 
+MULTI = False   # --multi-branch: average the boost over ALL next-layer branches (all latents inject)
+
+
 def boost(chain, latent_ids):
     # top-down boost along the decode chain (the established generation schedule); never
-    # moves the fixed latents; GAMMA==0 disables it (plain relaxation)
+    # moves the fixed latents; GAMMA==0 disables it (plain relaxation). MULTI averages the
+    # prediction over every next-layer branch, so all 5 latents inject their content instead
+    # of only the deepest code (the swaps proved s1-s4 inert under the single-branch route).
     if GAMMA == 0.0:
         return
     for L in chain:
         st = getattr(L, "state", None)
         if st is None or not L.next_layers or id(L) in latent_ids:
             continue
-        nxt = L.next_layers[0]
-        if not hasattr(nxt, "predict_prev"):
-            continue
-        td = nxt.predict_prev()
-        if td.shape != st.shape:
-            continue
+        if MULTI:
+            preds = []
+            for nxt in L.next_layers:
+                if not hasattr(nxt, "predict_prev"):
+                    continue
+                td = nxt.predict_prev()
+                if td.shape == st.shape:
+                    preds.append(td)
+            if not preds:
+                continue
+            td = tf.add_n(preds) / float(len(preds))
+        else:
+            nxt = L.next_layers[0]
+            if not hasattr(nxt, "predict_prev"):
+                continue
+            td = nxt.predict_prev()
+            if td.shape != st.shape:
+                continue
         st.assign(tf.clip_by_value(st + GAMMA * (td - st), -CLIP, CLIP))
 
 
@@ -103,11 +120,13 @@ def main():
     ap.add_argument("--decode-state-lr", type=float, default=None)   # relaxation rate for the decode phase; None = as built (1e-4, rate-starved)
     ap.add_argument("--untied", action="store_true")        # restore untied top-down weights from <ckpt>_td
     ap.add_argument("--td-ckpt", default=None)
-    ap.add_argument("--rms-match", action="store_true")   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
+    ap.add_argument("--rms-match", action="store_true")
+    ap.add_argument("--multi-branch", action="store_true")   # all latents inject via the boost   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
     ap.add_argument("--out", default="latent_source.png")
     a = ap.parse_args()
-    global GAMMA
+    global GAMMA, MULTI
     GAMMA = a.gamma
+    MULTI = a.multi_branch
     img, txt, mask = D.load_batch(2000, seed=0)
     img = np.asarray(img[:a.k], np.float32); txt = np.asarray(txt[:a.k], np.float32); mask = np.asarray(mask[:a.k], np.float32)
     T = tf.convert_to_tensor
