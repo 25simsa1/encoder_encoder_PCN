@@ -31,7 +31,7 @@ CLIP = 400.0
 GAMMA = 1.0   # overridden by --gamma; 0 = plain relaxation (no boost)
 
 
-def build_restore(ckpt, img, txt, mask, weight_norm, wn_ckpt, untied=False, td_ckpt=None):
+def build_restore(ckpt, img, txt, mask, weight_norm, wn_ckpt, untied=False, td_ckpt=None, td_affine=False):
     m = EncoderEncoderPCN(1e-4, config=C)
     for L in m.trainable_layers:
         if hasattr(L, "state_clip"):
@@ -51,7 +51,10 @@ def build_restore(ckpt, img, txt, mask, weight_norm, wn_ckpt, untied=False, td_c
         for L in m._image_path_layers:
             if hasattr(L, "enable_untied") and getattr(L, "wts", None) is not None:
                 L.enable_untied(); ntd += 1
-        TD = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
+        if td_affine:
+            TD = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
+        else:
+            TD = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]   # pre-affine ckpts; c_td stays 0
         tck = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD)})
         tck.restore(tf.train.latest_checkpoint(td_ckpt)).expect_partial()
         print(f"restored td {tf.train.latest_checkpoint(td_ckpt)} on {ntd} layers", flush=True)
@@ -121,7 +124,8 @@ def main():
     ap.add_argument("--untied", action="store_true")        # restore untied top-down weights from <ckpt>_td
     ap.add_argument("--td-ckpt", default=None)
     ap.add_argument("--rms-match", action="store_true")
-    ap.add_argument("--multi-branch", action="store_true")   # all latents inject via the boost   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
+    ap.add_argument("--multi-branch", action="store_true")   # all latents inject via the boost
+    ap.add_argument("--td-affine", action="store_true")       # td ckpt includes c_td (post-affine era)   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
     ap.add_argument("--out", default="latent_source.png")
     a = ap.parse_args()
     global GAMMA, MULTI
@@ -133,7 +137,7 @@ def main():
     print(f"ckpt={a.ckpt} k={a.k} relax={a.relax_cap} gamma={GAMMA}", flush=True)
     print(f"TRUE mean={img.mean():.4f} std={img.std():.4f}", flush=True)
     m = build_restore(a.ckpt, T(img), T(txt), T(mask), a.weight_norm, a.wn_ckpt or (a.ckpt + "_wn"),
-                      a.untied, a.td_ckpt or (a.ckpt + "_td"))
+                      a.untied, a.td_ckpt or (a.ckpt + "_td"), a.td_affine)
 
     pairs = m._shared_latent_pairs
     latent_ids = set()
