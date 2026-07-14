@@ -12,6 +12,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 
 ---
 
+### 2026-07-13 the untied arc, first content through the cascade, then the scheduled-sampling regression
+- config or command, the constraint amendment (untied top-down weights wts_td per image-path edge, local d_pred training, opt-in --untied byte-identical off). Full untied training destabilized after ep1 at three stabilizer settings (though it FIT FASTER than tied, floor 0.0034 at ep1). Phase-2 decode DISTILLATION (--train-mode tdonly, encoder frozen, teacher-forced per-edge td steps, stable by construction) on the isotropic encoder, then scheduled-sampling (tdcasc, 50/50 cascade-input batches)
+- result, the teacher-forced distillation (ckpt_untied3) produced the FIRST CONTENT EVER through the cascade, the boost readout shows clear per-image coarse luminance structure tracking each true image (the all-white shower column is the tell), not recognizable scenes but the first non-template decode of the campaign. The scheduled-sampling iteration then REGRESSED, the cascade-input mix taught the edges to shrink on saturated states, the boost readout went black while the free cascade stayed saturated (gain 10 to 3.6). Best artifact remains ckpt_untied3(+_td)
+- takeaway, the untied amendment is validated at the mechanism level (tying was the blocker, a dedicated trained decode carries content) and the remaining work is now HYPERPARAMETER iteration (mix ratios, schedules, readout calibration) rather than mechanism discovery. Recorded as the inflection point for the paper's tied-vs-untied ablation
+
+---
+
 ### 2026-07-13 the isometry constraint trains free and stabilizes, but generation is still content-blind, the FINAL null
 - config or command, scaled semi-orthogonalization flow in update_wts (small-side Gram -> c*I, anisotropy killed, scale left to the recipe; two pre-flight fixes, small-side Gram for the expanding 100->98304 inters and the scaled target after the unit target collapsed their natural scale 66x). From-scratch COCO64_GEN recon 15ep --isometry 1e-3 (job 9054, HEQ), then the three-cell retest (job 9058, pi / plain / boost)
 - result, the constraint itself is a WIN, recon reached the SAME floor as unconstrained (0.006) with LOWER bounded states (~80 vs 120-155), i.e. a free stabilizer. But generation is STILL content-blind, the pure-cascade cells saturate exactly as before (mse 0.4496, image-set == text-set), and the boost cell changed amplitude only (image-set now over-drives to blown-out white 3.2x, text-set rose to a brighter 0.64/0.62 template, the best text-set numbers of the campaign but visually the SAME template in every column, and the swaps are still single-code)
