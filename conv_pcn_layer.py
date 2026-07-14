@@ -75,10 +75,12 @@ class Conv2DPCNLayer:
         return self.wts_td
 
     def enable_untied(self):
-        # Seamless untie: wts_td starts as a copy of wts, so predict_prev is unchanged at enable.
+        # Seamless untie: wts_td starts as a copy of wts (c_td at zero), so predict_prev is
+        # unchanged at enable.
         if self.wts is None:
             raise RuntimeError("realize weights (run a forward pass) before enabling untied")
         self.wts_td = tf.Variable(tf.identity(self.wts), trainable=False)
+        self.c_td = tf.Variable(tf.zeros(int(self.wts.shape[-2]), dtype=tf.float32), trainable=False)
         self.untied = True
 
     def predict_prev(self):
@@ -92,10 +94,12 @@ class Conv2DPCNLayer:
                 output_shape = (self.output_shape[0], self.output_shape[1], self.output_shape[2], self.wts.shape[-2])
             else:
                 output_shape = (self.output_shape[0], self.output_shape[1]+self.kernel_size[0]-1, self.output_shape[2]+self.kernel_size[1]-1, self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=1, output_shape=output_shape)
+            p = tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=1, output_shape=output_shape)
+            return p + self.c_td if self.untied else p
         else:
             output_shape = (self.output_shape[0], self.input_shape[1], self.input_shape[2], self.wts.shape[-2])
-            return tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=self.stride, output_shape=output_shape)
+            p = tf.nn.conv2d_transpose(self.state, self.weight_td(), padding=self.padding, strides=self.stride, output_shape=output_shape)
+            return p + self.c_td if self.untied else p
     
     def predict_next(self):
         return self.state
@@ -231,6 +235,9 @@ class Conv2DPCNLayer:
                     wn2 = tf.norm(self.wts_td)
                     trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
                     self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+                    # the affine offset's local gradient: the mean top-down prediction error below
+                    e_td = self.predict_prev() - self.prev_layer.predict_next()
+                    self.c_td.assign_sub(self.learning_rate * tf.reduce_mean(e_td, axis=[0, 1, 2]))
                 if self.iso_eta != 0.0:
                     # the unopposed td step norm-inflates without this (cliff at ~ep2)
                     self._iso_flow(self.wts)

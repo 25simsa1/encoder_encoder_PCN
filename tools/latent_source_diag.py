@@ -51,7 +51,7 @@ def build_restore(ckpt, img, txt, mask, weight_norm, wn_ckpt, untied=False, td_c
         for L in m._image_path_layers:
             if hasattr(L, "enable_untied") and getattr(L, "wts", None) is not None:
                 L.enable_untied(); ntd += 1
-        TD = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]
+        TD = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
         tck = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD)})
         tck.restore(tf.train.latest_checkpoint(td_ckpt)).expect_partial()
         print(f"restored td {tf.train.latest_checkpoint(td_ckpt)} on {ntd} layers", flush=True)

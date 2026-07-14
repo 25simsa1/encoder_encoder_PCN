@@ -73,15 +73,19 @@ class DensePCNLayer:
         return self.wts_td
 
     def enable_untied(self):
-        # Seamless untie: wts_td starts as a copy of wts, so predict_prev is unchanged at
-        # enable time; the two matrices then diverge under their separate local errors.
+        # Seamless untie: wts_td starts as a copy of wts (and c_td at zero), so predict_prev
+        # is unchanged at enable time; they then learn under their separate local errors.
         if self.wts is None:
             raise RuntimeError("realize weights (run a forward pass) before enabling untied")
         self.wts_td = tf.Variable(tf.identity(self.wts), trainable=False)
+        self.c_td = tf.Variable(tf.zeros(int(self.wts.shape[0]), dtype=tf.float32), trainable=False)
         self.untied = True
 
     def predict_prev(self):
-        return (self.state - self.b) @ tf.linalg.matrix_transpose(self.weight_td())
+        p = (self.state - self.b) @ tf.linalg.matrix_transpose(self.weight_td())
+        if self.untied:
+            p = p + self.c_td   # affine inverse: absorbs the constant per-edge offset (gelu DC, vignette)
+        return p
     
     def predict_next(self):
         return self.state
@@ -177,6 +181,9 @@ class DensePCNLayer:
                     wn2 = tf.norm(self.wts_td)
                     trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
                     self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+                    # the affine offset's local gradient: the mean top-down prediction error below
+                    e_td = self.predict_prev() - self.prev_layer.predict_next()
+                    self.c_td.assign_sub(self.learning_rate * tf.reduce_mean(tf.reshape(e_td, (-1, int(e_td.shape[-1]))), axis=0))
                 if self.iso_eta != 0.0:
                     # the unopposed td step norm-inflates without this (cliff at ~ep2)
                     self._iso_flow(self.wts)

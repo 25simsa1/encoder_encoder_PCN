@@ -491,7 +491,7 @@ def main():
         for L in m._image_path_layers:
             if hasattr(L, "enable_untied") and getattr(L, "wts", None) is not None:
                 L.enable_untied(); ntd += 1
-        TD_W = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]
+        TD_W = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
         print(f"untied top-down weights on {ntd} image-path layers", flush=True)
         if a.train_mode in ("tdonly", "tdcasc"):
             for L in m._image_path_layers:
