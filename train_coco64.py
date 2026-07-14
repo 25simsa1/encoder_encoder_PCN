@@ -369,6 +369,65 @@ def diffusion_step(m, img_np, txt_np, mask_np, k0, k2, gen_lr, sigma_t):
 
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
+def seq_stage_step(m, img_np, txt_np, mask_np, k0, k1, casc_slr, stage_layers, frontier_layers):
+    """Sequential layerwise distillation stage step (PC-native, the composition-curse cure).
+    Phase R: recon clamp, relax k0, snapshot every image-path state (targets + per-layer rms).
+    Phase C: zero the frontier+stage states, express them top-down from the image-set latents
+    (pi_bu=0 at an adequate rate, rms-matched per layer), so the STAGE edges see the inputs the
+    frozen already-trained frontier ACTUALLY produces at generation time.
+    Phase W: per stage edge, clamp the layer below at its forward target and take the local
+    d_pred step (td weights only; wts frozen via td_only). Stationary inputs per stage, no
+    feedback, no compounding. Ends in the recon clamp config."""
+    T = tf.convert_to_tensor
+    img = T(img_np); txt = T(txt_np); mask = T(mask_np)
+    active = list(frontier_layers) + list(stage_layers)
+    # Phase R
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+    m.pass_through(img, txt, mask)
+    for _ in range(k0):
+        for L in m.trainable_layers:
+            L.update_state()
+    targets, rms = {}, {}
+    for L in m._image_path_layers:
+        st = getattr(L, "state", None)
+        if st is not None:
+            targets[id(L)] = tf.identity(st)
+            rms[id(L)] = float(tf.sqrt(tf.reduce_mean(tf.square(st)))) + 1e-8
+    tgt_img = tf.identity(m.img_input.state)
+    # Phase C: express frontier+stage top-down (latents stay image-set, untouched)
+    for L in active:
+        if getattr(L, "state", None) is not None:
+            L.state.assign(tf.zeros_like(L.state))
+    orig = [(L, L.pi_bu, L.state_lr) for L in active]
+    for L in active:
+        L.pi_bu = 0.0; L.state_lr = casc_slr
+    for _ in range(k1):
+        for L in active:
+            L.update_state()
+        for L in active:
+            st = getattr(L, "state", None)
+            if st is None or id(L) not in rms:
+                continue
+            cur = tf.sqrt(tf.reduce_mean(tf.square(st))) + 1e-8
+            st.assign(st * (rms[id(L)] / cur))
+    for L, pb, sl in orig:
+        L.pi_bu = pb; L.state_lr = sl
+    cascade = {id(L): tf.identity(L.state) for L in active if getattr(L, "state", None) is not None}
+    # Phase W: per stage edge, target below = forward state, input = cascade state
+    for L in stage_layers:
+        P = getattr(L, "prev_layer", None)
+        if P is None or id(P) not in targets:
+            continue
+        P.state.assign(targets[id(P)]); p_cl = P.is_clamped; P.is_clamped = True
+        L.update_wts()
+        P.is_clamped = p_cl
+        if id(P) in cascade:
+            P.state.assign(cascade[id(P)])
+        else:
+            P.state.assign(targets[id(P)])
+    m.img_input.set_state(img)
+    m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+
 def infonce_relax_step(m, img, txt, mask, relax, lam, tau):
     """Relax-then-step with an InfoNCE error injected at the deepest branch codes each
     relax substep, then the existing local LARS weight step. Eager (does not use the
@@ -400,7 +459,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly", "tdcasc"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly", "tdcasc", "tdseq"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -493,7 +552,7 @@ def main():
                 L.enable_untied(); ntd += 1
         TD_W = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
         print(f"untied top-down weights on {ntd} image-path layers", flush=True)
-        if a.train_mode in ("tdonly", "tdcasc"):
+        if a.train_mode in ("tdonly", "tdcasc", "tdseq"):
             for L in m._image_path_layers:
                 if getattr(L, "untied", False):
                     L.td_only = True
@@ -516,6 +575,13 @@ def main():
         if td_best_mgr is not None: td_best_mgr.save()
 
     diff_sigmas = np.geomspace(a.diff_sigma_min, a.diff_sigma_max, a.diff_levels).astype(np.float32)
+    if a.untied and a.train_mode == "tdseq":
+        # top-down stage groups: reversed construction order approximates latent-to-pixel depth
+        seq_edges = [L for L in reversed(m._image_path_layers)
+                     if getattr(L, "untied", False)]
+        NST = 5
+        seq_groups = [seq_edges[i * len(seq_edges) // NST:(i + 1) * len(seq_edges) // NST] for i in range(NST)]
+        print(f"tdseq: {len(seq_edges)} edges in {NST} top-down stages", flush=True)
     N = img.shape[0]; step = 0; t0 = time.time()
     ia, il = 0.0, 0.0
     for ep in range(a.epochs):
@@ -527,6 +593,12 @@ def main():
             if a.infonce_lambda > 0:
                 ia, il = infonce_relax_step(m, tf.convert_to_tensor(img[bi]), tf.convert_to_tensor(txt[bi]),
                                             tf.convert_to_tensor(mask[bi]), a.relax, a.infonce_lambda, a.infonce_tau)
+            elif a.train_mode == "tdseq":
+                stage = min(ep * 5 // a.epochs, 4)
+                seq_stage_step(m, img[bi], txt[bi], mask[bi],
+                               a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax,
+                               a.free_state_lr or 0.25,
+                               seq_groups[stage], [L for g in seq_groups[:stage] for L in g])
             elif a.train_mode == "tdcasc":
                 # scheduled-sampling distillation: alternate teacher-forced batches (forward
                 # states as inputs) with cascade-input batches (phase-C states as inputs,
