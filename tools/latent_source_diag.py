@@ -103,6 +103,7 @@ def main():
     ap.add_argument("--decode-state-lr", type=float, default=None)   # relaxation rate for the decode phase; None = as built (1e-4, rate-starved)
     ap.add_argument("--untied", action="store_true")        # restore untied top-down weights from <ckpt>_td
     ap.add_argument("--td-ckpt", default=None)
+    ap.add_argument("--rms-match", action="store_true")   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
     ap.add_argument("--out", default="latent_source.png")
     a = ap.parse_args()
     global GAMMA
@@ -130,6 +131,8 @@ def main():
         for L in m.trainable_layers:
             L.update_state()
     lat_img = [a_.state.numpy().copy() for a_, _ in pairs]
+    fwd_rms = {id(L): float(tf.sqrt(tf.reduce_mean(tf.square(L.state)))) for L in decode if getattr(L, "state", None) is not None}
+    img_rms = float(tf.sqrt(tf.reduce_mean(tf.square(T(img)))))
 
     # --- capture TEXT-set latents (caption clamped, image zeros unclamped, boosted relax;
     #     the established generation regime)
@@ -165,6 +168,17 @@ def main():
                 L.update_state()
             m.img_input.update_state()
             boost(chain, latent_ids)    # boost the decode chain; never the fixed latents
+            if a.rms_match:
+                # per-layer scalar rescale to the known forward scale: content preserved,
+                # gain compounding erased (we know each layer's healthy RMS on the overfit)
+                for L in decode:
+                    st = getattr(L, "state", None)
+                    if st is None or id(L) not in fwd_rms:
+                        continue
+                    cur = tf.sqrt(tf.reduce_mean(tf.square(st))) + 1e-8
+                    st.assign(st * (fwd_rms[id(L)] / cur))
+                cur = tf.sqrt(tf.reduce_mean(tf.square(m.img_input.state))) + 1e-8
+                m.img_input.state.assign(m.img_input.state * (img_rms / cur))
         for L, s in orig_slr:
             L.state_lr = s
         if a.pi_bu is not None:
