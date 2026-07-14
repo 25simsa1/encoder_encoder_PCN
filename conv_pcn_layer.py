@@ -230,6 +230,10 @@ class Conv2DPCNLayer:
                     wn2 = tf.norm(self.wts_td)
                     trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
                     self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+                if self.iso_eta != 0.0:
+                    # the unopposed td step norm-inflates without this (cliff at ~ep2)
+                    self._iso_flow(self.wts)
+                    self._iso_flow(self.wts_td)
             elif not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = (tf.cast(tf.logical_not(self.is_clamped), tf.float32) + tf.cast(tf.logical_not(self.prev_layer.is_clamped), tf.float32))
                 g = (d_state + d_pred) / denom
@@ -258,25 +262,27 @@ class Conv2DPCNLayer:
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
                 if self.iso_eta != 0.0:
-                    # local soft SCALED semi-orthogonalization via the kernel surrogate: reshape
-                    # to (kh*kw*in, out), drive the small-side Gram toward c*I with c the
-                    # kernel's own current scale (trace/n), killing anisotropy while leaving the
-                    # scale to the recon recipe. Relative-deviation step, bounded by eta. Local,
-                    # no backprop.
-                    kmat = tf.reshape(self.wts, (-1, int(self.wts.shape[-1])))
-                    kr, kc = int(kmat.shape[0]), int(kmat.shape[-1])
-                    n = min(kr, kc)
-                    if kc <= kr:
-                        gram = tf.linalg.matrix_transpose(kmat) @ kmat
-                    else:
-                        gram = kmat @ tf.linalg.matrix_transpose(kmat)
-                    c = tf.linalg.trace(gram) / float(n)
-                    dev = (c * tf.eye(n) - gram) / (c + 1e-8)
-                    if kc <= kr:
-                        kmat = kmat + self.iso_eta * (kmat @ dev)
-                    else:
-                        kmat = kmat + self.iso_eta * (dev @ kmat)
-                    self.wts.assign(tf.reshape(kmat, self.wts.shape))
+                    self._iso_flow(self.wts)
+
+    def _iso_flow(self, v):
+        # local soft SCALED semi-orthogonalization via the kernel surrogate: reshape to
+        # (kh*kw*in, out), drive the small-side Gram toward c*I with c the kernel's own
+        # current scale (trace/n), killing anisotropy while leaving the scale to the recon
+        # recipe. Relative-deviation step, bounded by eta. Local, no backprop.
+        kmat = tf.reshape(v, (-1, int(v.shape[-1])))
+        kr, kc = int(kmat.shape[0]), int(kmat.shape[-1])
+        n = min(kr, kc)
+        if kc <= kr:
+            gram = tf.linalg.matrix_transpose(kmat) @ kmat
+        else:
+            gram = kmat @ tf.linalg.matrix_transpose(kmat)
+        c = tf.linalg.trace(gram) / float(n)
+        dev = (c * tf.eye(n) - gram) / (c + 1e-8)
+        if kc <= kr:
+            kmat = kmat + self.iso_eta * (kmat @ dev)
+        else:
+            kmat = kmat + self.iso_eta * (dev @ kmat)
+        v.assign(tf.reshape(kmat, v.shape))
 
     def update_b(self):
         pass # there is no bias

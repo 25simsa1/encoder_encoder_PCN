@@ -176,6 +176,10 @@ class DensePCNLayer:
                     wn2 = tf.norm(self.wts_td)
                     trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
                     self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+                if self.iso_eta != 0.0:
+                    # the unopposed td step norm-inflates without this (cliff at ~ep2)
+                    self._iso_flow(self.wts)
+                    self._iso_flow(self.wts_td)
             elif not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32)
                 g = (d_state + d_pred) / denom
@@ -199,25 +203,25 @@ class DensePCNLayer:
                     self.last_trust = trust  # exposed for logging only
                     self.wts.assign_sub(self.learning_rate * trust * (g + wd * self.wts))
                 if self.iso_eta != 0.0:
-                    # local soft SCALED semi-orthogonalization (isometry constraint): drive the
-                    # small-side Gram toward c*I with c the layer's OWN current scale (trace/n),
-                    # killing the anisotropy (what destroys content in the composed top-down
-                    # cascade) while leaving the scale to the recon recipe. The step is a
-                    # relative deviation, bounded by eta regardless of layer scale (forcing
-                    # unit scale collapsed the natural-scale-31 inters 66x in one step and
-                    # diverged). Local (this layer's matrix only), no error signal, no backprop.
-                    din, dout = int(self.wts.shape[0]), int(self.wts.shape[-1])
-                    n = min(din, dout)
-                    if dout <= din:
-                        gram = tf.linalg.matrix_transpose(self.wts) @ self.wts
-                    else:
-                        gram = self.wts @ tf.linalg.matrix_transpose(self.wts)
-                    c = tf.linalg.trace(gram) / float(n)
-                    dev = (c * tf.eye(n) - gram) / (c + 1e-8)
-                    if dout <= din:
-                        self.wts.assign_add(self.iso_eta * (self.wts @ dev))
-                    else:
-                        self.wts.assign_add(self.iso_eta * (dev @ self.wts))
+                    self._iso_flow(self.wts)
+
+    def _iso_flow(self, v):
+        # local soft SCALED semi-orthogonalization (isometry constraint): drive the small-side
+        # Gram toward c*I with c the matrix's OWN current scale (trace/n), killing anisotropy
+        # while leaving the scale to the recon recipe. Relative-deviation step bounded by eta.
+        # Local (this matrix only), no error signal, no backprop.
+        din, dout = int(v.shape[0]), int(v.shape[-1])
+        n = min(din, dout)
+        if dout <= din:
+            gram = tf.linalg.matrix_transpose(v) @ v
+        else:
+            gram = v @ tf.linalg.matrix_transpose(v)
+        c = tf.linalg.trace(gram) / float(n)
+        dev = (c * tf.eye(n) - gram) / (c + 1e-8)
+        if dout <= din:
+            v.assign_add(self.iso_eta * (v @ dev))
+        else:
+            v.assign_add(self.iso_eta * (dev @ v))
 
     # pred_err = state - pred
     # 1/2*(state - pred)^2 = 1/2*(state - act(x@wts+b))^2
