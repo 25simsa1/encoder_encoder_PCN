@@ -398,7 +398,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -491,6 +491,11 @@ def main():
                 L.enable_untied(); ntd += 1
         TD_W = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]
         print(f"untied top-down weights on {ntd} image-path layers", flush=True)
+        if a.train_mode == "tdonly":
+            for L in m._image_path_layers:
+                if getattr(L, "untied", False):
+                    L.td_only = True
+            print("tdonly distillation: wts frozen, training only wts_td on forward-pass states", flush=True)
         if TD_W:
             td_ckpt = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD_W)})
             td_mgr = tf.train.CheckpointManager(td_ckpt, a.ckpt + "_td", max_to_keep=1)
@@ -520,6 +525,14 @@ def main():
             if a.infonce_lambda > 0:
                 ia, il = infonce_relax_step(m, tf.convert_to_tensor(img[bi]), tf.convert_to_tensor(txt[bi]),
                                             tf.convert_to_tensor(mask[bi]), a.relax, a.infonce_lambda, a.infonce_tau)
+            elif a.train_mode == "tdonly":
+                # teacher-forced decode distillation: the forward pass set every state bottom-up,
+                # each untied edge takes its local d_pred step toward the state below. NO
+                # relaxation during the weight phase, so wts_td never feeds back into its own
+                # training data, stable by construction.
+                for L in m._image_path_layers:
+                    if getattr(L, "untied", False):
+                        L.update_wts()
             else:
                 m.update_states_wts_b_relaxed(num_weight_steps=1, num_relax_steps=a.relax)
             if a.train_mode == "gen" and step % a.gen_every == 0:

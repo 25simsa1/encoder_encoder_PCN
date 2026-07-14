@@ -40,6 +40,7 @@ class DensePCNLayer:
         self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
         self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
         self.wts_td = None                # the top-down weights, created by enable_untied
+        self.td_only = False              # distillation mode: freeze wts, train only wts_td
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -168,7 +169,7 @@ class DensePCNLayer:
             if self.untied:
                 # untied: each matrix gets ONE duty and ONE local error, nothing competes.
                 wd = self.weight_decay
-                if not self.prev_layer.is_clamped:
+                if not self.td_only and not self.prev_layer.is_clamped:
                     wn = tf.norm(self.wts)
                     trust = tf.minimum(wn / (tf.norm(d_state) + wd * wn + 1e-6), self.trust_cap)
                     self.wts.assign_sub(self.learning_rate * trust * (d_state + wd * self.wts))
