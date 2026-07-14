@@ -179,7 +179,7 @@ def chl_step(m, img_np, txt_np, mask_np, k0, k1, k2, gen_lr, latents="text", fre
     # restore the recon clamp config for the next recon step
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
-def cascade_step(m, img_np, txt_np, mask_np, k0, k1, gen_lr, casc_state_lr):
+def cascade_step(m, img_np, txt_np, mask_np, k0, k1, gen_lr, casc_state_lr, update_bias=True):
     """Cascade-consistency step (PC-native): calibrate each top-down edge against its bounded
     per-layer recon target. Phase R (targets): recon clamp, relax, snapshot every image-path
     state (they encode the actual image; latents end image-set and stay held by exclusion).
@@ -238,7 +238,9 @@ def cascade_step(m, img_np, txt_np, mask_np, k0, k1, gen_lr, casc_state_lr):
             L.bias_lr = gen_lr
         if wd0 is not None:
             L.weight_decay = 0.0
-        L.update_wts(); L.update_b()
+        L.update_wts()
+        if update_bias:
+            L.update_b()
         L.learning_rate = lr0
         if blr0 is not None:
             L.bias_lr = blr0
@@ -398,7 +400,7 @@ def main():
     ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly", "tdcasc"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -491,7 +493,7 @@ def main():
                 L.enable_untied(); ntd += 1
         TD_W = [L.wts_td for L in m._image_path_layers if getattr(L, "untied", False)]
         print(f"untied top-down weights on {ntd} image-path layers", flush=True)
-        if a.train_mode == "tdonly":
+        if a.train_mode in ("tdonly", "tdcasc"):
             for L in m._image_path_layers:
                 if getattr(L, "untied", False):
                     L.td_only = True
@@ -525,6 +527,20 @@ def main():
             if a.infonce_lambda > 0:
                 ia, il = infonce_relax_step(m, tf.convert_to_tensor(img[bi]), tf.convert_to_tensor(txt[bi]),
                                             tf.convert_to_tensor(mask[bi]), a.relax, a.infonce_lambda, a.infonce_tau)
+            elif a.train_mode == "tdcasc":
+                # scheduled-sampling distillation: alternate teacher-forced batches (forward
+                # states as inputs) with cascade-input batches (phase-C states as inputs,
+                # forward states below as targets), so each edge's wts_td learns to invert the
+                # states it will actually see at generation time. Encoder frozen (td_only),
+                # no relaxation trains anything, targets fixed.
+                if step % 2 == 0:
+                    for L in m._image_path_layers:
+                        if getattr(L, "untied", False):
+                            L.update_wts()
+                else:
+                    cascade_step(m, img[bi], txt[bi], mask[bi],
+                                 a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax,
+                                 a.gen_lr or a.lr, a.free_state_lr or 0.25, update_bias=False)
             elif a.train_mode == "tdonly":
                 # teacher-forced decode distillation: the forward pass set every state bottom-up,
                 # each untied edge takes its local d_pred step toward the state below. NO
