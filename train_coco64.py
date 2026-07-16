@@ -7,6 +7,7 @@ for g in tf.config.list_physical_devices("GPU"):
     tf.config.experimental.set_memory_growth(g, True)
 from encoder_encoder_pcn import EncoderEncoderPCN
 from conv_pcn_layer import Conv2DPCNLayer
+from dense_pcn_layer import DensePCNLayer
 from pcn_config import COCO64_156M, COCO64_GEN
 from infonce import infonce_grads
 import coco64_data as D
@@ -553,10 +554,17 @@ def main():
         TD_W = [v for L in m._image_path_layers if getattr(L, "untied", False) for v in (L.wts_td, L.c_td)]
         print(f"untied top-down weights on {ntd} image-path layers", flush=True)
         if a.train_mode in ("tdonly", "tdcasc", "tdseq"):
+            ncap = 0
             for L in m._image_path_layers:
                 if getattr(L, "untied", False):
                     L.td_only = True
-            print("tdonly distillation: wts frozen, training only wts_td on forward-pass states", flush=True)
+                    # the wide-relu branch denses predict tiny 100-dim targets; the LARS trust
+                    # ||w||/||g|| explodes on their tiny gradients and the steps overshoot the
+                    # delicate map (measured gains 31-63x, worse without wd). Cap their trust
+                    # near 1 so the td step stays proportionally small.
+                    if isinstance(L, DensePCNLayer) and L.activation == 'relu':
+                        L.trust_cap = min(L.trust_cap, 1.0); ncap += 1
+            print(f"tdonly distillation: wts frozen, training only wts_td (trust_cap 1.0 on {ncap} relu-dense edges)", flush=True)
         if TD_W:
             td_ckpt = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD_W)})
             td_mgr = tf.train.CheckpointManager(td_ckpt, a.ckpt + "_td", max_to_keep=1)
