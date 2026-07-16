@@ -126,9 +126,13 @@ class FlattenPCNLayer:
     # assume 1 next layer
     def predict_prev(self):
         return tf.reshape(self.next_layers[0].predict_prev(), self.input_shape)
-    
+
     def pred_loss_d_input(self, x:tf.Tensor):
-        return 1.
+        # a stateless reshape predicts its input exactly (predict_next == self(x) identically),
+        # so its own prediction-error gradient is zero. The old constant 1. injected a spurious
+        # constant drive into every tapped conv's relaxation (negligible at recon's 1e-4 rate,
+        # 2500x amplified at decode rates).
+        return 0.
 
 class EncoderEncoderPCN:
     trainable_layers : list
