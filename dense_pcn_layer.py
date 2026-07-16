@@ -185,8 +185,11 @@ class DensePCNLayer:
                     e_td = self.predict_prev() - self.prev_layer.predict_next()
                     self.c_td.assign_sub(self.learning_rate * tf.reduce_mean(tf.reshape(e_td, (-1, int(e_td.shape[-1]))), axis=0))
                 if self.iso_eta != 0.0:
-                    # the unopposed td step norm-inflates without this (cliff at ~ep2)
-                    self._iso_flow(self.wts)
+                    # the unopposed td step norm-inflates without this (cliff at ~ep2); in
+                    # distillation (td_only) wts is frozen, so the flow touches only wts_td,
+                    # where it also normalizes the copy-init gain of the expanding edges
+                    if not self.td_only:
+                        self._iso_flow(self.wts)
                     self._iso_flow(self.wts_td)
             elif not self.is_clamped or not self.prev_layer.is_clamped:
                 denom = tf.cast(int(not self.is_clamped)+int(not self.prev_layer.is_clamped), tf.float32)
