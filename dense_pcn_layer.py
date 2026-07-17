@@ -184,7 +184,9 @@ class DensePCNLayer:
                         # stable conditioner (the LARS trust explodes on tiny-target edges)
                         x = self.predict_next() - self.b
                         xsq = tf.reduce_mean(tf.reduce_sum(tf.square(x), axis=-1)) + 1e-6
-                        self.wts_td.assign_sub(self.learning_rate * (d_pred / xsq + wd * self.wts_td))
+                        # decay decoupled from the elevated NLMS rate (coupling it annihilated the
+                        # maps, e^-7.5 at lr 0.01); 1e-3*wd preserves the historical per-step decay
+                        self.wts_td.assign_sub(self.learning_rate * d_pred / xsq + 1e-3 * wd * self.wts_td)
                     else:
                         wn2 = tf.norm(self.wts_td)
                         trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
