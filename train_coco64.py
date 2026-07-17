@@ -562,9 +562,8 @@ def main():
                     # ||w||/||g|| explodes on their tiny gradients and the steps overshoot the
                     # delicate map (measured gains 31-63x, worse without wd). Cap their trust
                     # near 1 so the td step stays proportionally small.
-                    if isinstance(L, DensePCNLayer) and L.activation == 'relu':
-                        L.trust_cap = min(L.trust_cap, 1.0); ncap += 1
-            print(f"tdonly distillation: wts frozen, training only wts_td (trust_cap 1.0 on {ncap} relu-dense edges)", flush=True)
+                    L.td_nlms = True; ncap += 1
+            print(f"tdonly distillation: wts frozen, NLMS-conditioned td steps on {ncap} edges", flush=True)
         if TD_W:
             td_ckpt = tf.train.Checkpoint(**{f"t{i}": v for i, v in enumerate(TD_W)})
             td_mgr = tf.train.CheckpointManager(td_ckpt, a.ckpt + "_td", max_to_keep=1)

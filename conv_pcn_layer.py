@@ -44,6 +44,7 @@ class Conv2DPCNLayer:
         self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
         self.wts_td = None                # the top-down weights, created by enable_untied
         self.td_only = False              # distillation mode: freeze wts, train only wts_td
+        self.td_nlms = False              # NLMS conditioning for the td step, stable by construction
 
     def init_params(self, input_shape:tuple):
         # print(self.get_kaiming_gain()/tf.sqrt(float(input_shape[-1])))
@@ -232,9 +233,14 @@ class Conv2DPCNLayer:
                     trust = tf.minimum(wn / (tf.norm(d_state) + wd * wn + 1e-6), self.trust_cap)
                     self.wts.assign_sub(self.learning_rate * trust * (d_state + wd * self.wts))
                 if not self.is_clamped:
-                    wn2 = tf.norm(self.wts_td)
-                    trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
-                    self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
+                    if self.td_nlms:
+                        x = self.predict_next()
+                        xsq = tf.reduce_mean(tf.reduce_sum(tf.square(x), axis=[1, 2, 3])) + 1e-6
+                        self.wts_td.assign_sub(self.learning_rate * (d_pred / xsq + wd * self.wts_td))
+                    else:
+                        wn2 = tf.norm(self.wts_td)
+                        trust2 = tf.minimum(wn2 / (tf.norm(d_pred) + wd * wn2 + 1e-6), self.trust_cap)
+                        self.wts_td.assign_sub(self.learning_rate * trust2 * (d_pred + wd * self.wts_td))
                     # the affine offset's local gradient: the mean top-down prediction error below
                     e_td = self.predict_prev() - self.prev_layer.predict_next()
                     self.c_td.assign_sub(self.learning_rate * tf.reduce_mean(e_td, axis=[0, 1, 2]))
