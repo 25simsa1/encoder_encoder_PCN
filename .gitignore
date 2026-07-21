@@ -26,3 +26,4 @@ infonce_gen_l10/
 infonce_gen_td/
 # internal working ledger (the durable record is docs/STATE.md + docs/experiments/LOG.md)
 .superpowers/
+archive/

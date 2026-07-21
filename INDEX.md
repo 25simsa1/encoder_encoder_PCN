@@ -1,9 +1,30 @@
 # Repo index
 
-A map of what is where. Files are NOT moved into folders on purpose: the paper draft, the
-RUN logs, and the Slurm job scripts all reference result and script paths inline, and jobs are
-still writing here, so a physical reorg waits until after submission. This file is the
-navigation layer instead.
+A map of what is where. Tracked files are NOT moved into folders on purpose: the paper draft,
+the RUN logs, and the Slurm job scripts all reference result and script paths inline, and jobs
+are still writing here, so a physical reorg waits until after submission. This file is the
+navigation layer instead. Pure scratch (my session decode grids, untracked run logs) lives in
+`archive/` (gitignored) to keep the working dir readable.
+
+## Newest work (generation study, Jul 2026 — start here if you're catching up)
+Most-recently-touched files, newest first: `tools/text_nl_dense_ceiling.py`,
+`docs/experiments/LOG.md`, `tools/text_nonlinear_ceiling.py`, `docs/STATE.md`,
+`tools/nce_probe.py`, `train_coco64.py`, `tools/text_ceiling.py`, `tools/text_align.py`,
+`tools/ridge_td.py`, `tools/relax_probe.py`, `tools/gram_scales.py`, `conv_pcn_layer.py`,
+`dense_pcn_layer.py`, `pcn_config.py` (the `COCO64_WIDE` config), and `results/`.
+Read `docs/STATE.md` then the top of `docs/experiments/LOG.md` for the current status.
+
+## Generation line (this study)
+- `pcn_config.py` -- `COCO64_WIDE` (inter_dim 512), the config that broke the generation ceiling
+- `train_coco64.py` -- adds `--config coco64_wide`, `--iso-scale`, `textdistill` mode, and the
+  scale-robust InfoNCE coupling fix (`--infonce-lambda`)
+- `tools/ridge_td.py` -- closed-form ridge solve for the untied top-down decode edges
+  (`--ridge-conv` solves the conv edges too); the working decode recipe
+- `tools/gram_scales.py`, `tools/relax_probe.py` -- localized the wide-net instability
+- `tools/text_ceiling.py`, `tools/text_nonlinear_ceiling.py`, `tools/text_nl_dense_ceiling.py`,
+  `tools/nce_probe.py`, `tools/text_align.py` -- the caption-to-image / coupling probes
+- `results/` -- curated milestone grids + README (image-to-image at mse 0.0402; caption side
+  blocked by the coupling failure). Raw scratch grids are in `archive/decode_grids/`.
 
 Naming conventions worth knowing:
 - `run_*.py` are experiment drivers, `analysis_*.py` are post-hoc tools that read saved checkpoints.
