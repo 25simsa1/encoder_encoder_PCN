@@ -1,4 +1,8 @@
 #!/bin/bash
+# NOTE (repo reorg Jul 2026): the driver scripts below (run_coupling_scale.py,
+# run_E1_bp_clip_baseline.py, ...) now live in experiments/. The bare `python3 run_*.py`
+# invocations here assume the flat layout of the original pod; on redeploy either copy the
+# scripts into the run dir as before, or invoke as `PYTHONPATH=<repo> python3 experiments/run_*.py`.
 # E1_POD_RUNBOOK.sh -- ordered A100 execution for the venue-gate experiments.
 # E1 = BP achievability ladder (run_E1_bp_clip_baseline.py, new)
 # E2 = multi-seed the 2k PC negative (existing driver)

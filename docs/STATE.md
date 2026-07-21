@@ -57,7 +57,7 @@ Separately, the broader banked question (does the coupling failure persist 156M 
 ## Next steps
 - Read the wide battery verdict (R2 map, edge gains, latent_wide_boost/pi grids) and judge per-image identity.
 - If identity survives, wire text-to-code alignment (fix B) for caption-to-image, then the distill-then-join run.
-- Deferred, NATIVE-143 gate re-bank post-flatten-fix (needs the whole H200), then the capacity-ladder training runs per CAPACITY.md.
+- Deferred, NATIVE-143 gate re-bank post-flatten-fix (needs the whole H200), then the capacity-ladder training runs per docs/runbooks/CAPACITY.md.
 
 ## Open questions
 - Which pre-registered branch the capacity ladder lands on. PC stays flat at chance through 7.7B while the baseline crosses at every size, PC crosses the bar at some size, or the baseline degrades at large capacity.

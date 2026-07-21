@@ -409,11 +409,11 @@ toward a positive result.
 
 | claim | source file | commit |
 |:--|:--|:--|
-| Finding 1, 400/100 held-out | step1_heldout_results.json, RUN_STEP1_HELDOUT.md | d36b6ae |
-| In-sample gate (context for the inflation) | RUN_STEP1.md | 00304a9 |
+| Finding 1, 400/100 held-out | step1_heldout_results.json, docs/runbooks/RUN_STEP1_HELDOUT.md | d36b6ae |
+| In-sample gate (context for the inflation) | docs/runbooks/RUN_STEP1.md | 00304a9 |
 | Finding 2, 2k scale point with control | coupling_scale_results_seed0.json | 4d4f4e5 |
 | Finding 3, warm-up washout diagnostic (jw=0) | diag_jw0.json, diag_jw0.log | 9ab896b |
 | Finding 3, warm-up washout diagnostic (jw=0.1) | diag_jw1.json, diag_jw1.log | 9ab896b |
 | Finding 4, data-scale curve | TODO (pending) | fa1e736 |
-| Method, evaluation protocol | run_step1_coco_heldout.py, run_infonce_warmup_coco.py, run_coupling_scale.py | d36b6ae / 1778665 / b209377 |
+| Method, evaluation protocol | experiments/run_step1_coco_heldout.py, experiments/run_infonce_warmup_coco.py, experiments/run_coupling_scale.py | d36b6ae / 1778665 / b209377 |
 | Related work and novelty gap | LIT_REVIEW.md | (committed) |
