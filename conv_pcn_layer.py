@@ -41,6 +41,7 @@ class Conv2DPCNLayer:
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
         self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
+        self.iso_scale = 0.0              # fixed iso Gram-scale anchor; 0 = kernel's own scale
         self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
         self.wts_td = None                # the top-down weights, created by enable_untied
         self.td_only = False              # distillation mode: freeze wts, train only wts_td
@@ -295,7 +296,8 @@ class Conv2DPCNLayer:
             gram = tf.linalg.matrix_transpose(kmat) @ kmat
         else:
             gram = kmat @ tf.linalg.matrix_transpose(kmat)
-        c = tf.linalg.trace(gram) / float(n)
+        # iso_scale anchors c to a constant (bounds the natural state scale); 0 = own scale
+        c = self.iso_scale if self.iso_scale else tf.linalg.trace(gram) / float(n)
         dev = (c * tf.eye(n) - gram) / (c + 1e-8)
         if kc <= kr:
             kmat = kmat + self.iso_eta * (kmat @ dev)

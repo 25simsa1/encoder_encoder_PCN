@@ -38,6 +38,7 @@ class DensePCNLayer:
         self.pi_td = 1.0                  # precision on the next-layers (top-down consistency) drive; 1 = default
         self.pi_bu = 1.0                  # precision on the prev-layer (bottom-up consistency) drive; 1 = default
         self.iso_eta = 0.0                # soft orthogonalization rate (isometry constraint); 0 = off
+        self.iso_scale = 0.0              # fixed iso Gram-scale anchor; 0 = matrix's own scale
         self.untied = False               # untied top-down prediction weights; False = tied (byte-identical)
         self.wts_td = None                # the top-down weights, created by enable_untied
         self.td_only = False              # distillation mode: freeze wts, train only wts_td
@@ -237,7 +238,9 @@ class DensePCNLayer:
             gram = tf.linalg.matrix_transpose(v) @ v
         else:
             gram = v @ tf.linalg.matrix_transpose(v)
-        c = tf.linalg.trace(gram) / float(n)
+        # iso_scale anchors c to a constant (bounding the net's natural state scale,
+        # which otherwise inflates without divergence on wide configs); 0 = own scale
+        c = self.iso_scale if self.iso_scale else tf.linalg.trace(gram) / float(n)
         dev = (c * tf.eye(n) - gram) / (c + 1e-8)
         if dout <= din:
             v.assign_add(self.iso_eta * (v @ dev))
