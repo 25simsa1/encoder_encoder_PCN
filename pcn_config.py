@@ -73,3 +73,12 @@ COCO64_156M = PCNConfig(
 # top-down through the downsampling stages instead of being blocked by it.
 import dataclasses as _dc
 COCO64_GEN = _dc.replace(COCO64_156M, downsample='strided_conv')
+
+# Wide-inter escalation: the ridge experiment (LOG 2026-07-16) proved the
+# per-edge-linear ceiling at inter_dim=100 — exact closed-form optimal
+# top-down inverses still decode to a shared attractor because the five
+# downward inter pipes carry only 57-72% of the below-layer variance each.
+# 512 per tap (2560 total downward rank) clears the PCA-500
+# recognizable-blurry ceiling with margin. New name = new checkpoints;
+# NATIVE and COCO64_GEN are untouched.
+COCO64_WIDE = _dc.replace(COCO64_GEN, inter_dim=512, name="coco64w")
