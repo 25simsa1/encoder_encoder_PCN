@@ -9,3 +9,20 @@ midscale_run.log
 actgrid_run.log
 seeds_run.log
 .DS_Store
+
+# scratch decode grids (curated milestones live in results/)
+/latent_*.png
+/*.png
+# scratch generation-output dirs (checkpoint indices / sample dumps)
+gen/
+genc/
+gg/
+gen_retest_out/
+gen_retest_prev/
+gen_td_out/
+gen_td_reconmodel/
+infonce_gen/
+infonce_gen_l10/
+infonce_gen_td/
+# internal working ledger (the durable record is docs/STATE.md + docs/experiments/LOG.md)
+.superpowers/
