@@ -23,7 +23,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from encoder_encoder_pcn import EncoderEncoderPCN
-from pcn_config import COCO64_GEN as C
+import os
+from pcn_config import COCO64_GEN, COCO64_WIDE
+# PCN_TOOL_CONFIG=coco64_wide selects the wide-inter config; default unchanged
+C = COCO64_WIDE if os.environ.get('PCN_TOOL_CONFIG') == 'coco64_wide' else COCO64_GEN
 from conv_pcn_layer import Conv2DPCNLayer
 import coco64_data as D
 
