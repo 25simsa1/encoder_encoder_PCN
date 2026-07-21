@@ -8,7 +8,7 @@ for g in tf.config.list_physical_devices("GPU"):
 from encoder_encoder_pcn import EncoderEncoderPCN
 from conv_pcn_layer import Conv2DPCNLayer
 from dense_pcn_layer import DensePCNLayer
-from pcn_config import COCO64_156M, COCO64_GEN
+from pcn_config import COCO64_156M, COCO64_GEN, COCO64_WIDE
 from infonce import infonce_grads
 import coco64_data as D
 
@@ -429,20 +429,31 @@ def seq_stage_step(m, img_np, txt_np, mask_np, k0, k1, casc_slr, stage_layers, f
     m.img_input.set_state(img)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
 
-def infonce_relax_step(m, img, txt, mask, relax, lam, tau):
-    """Relax-then-step with an InfoNCE error injected at the deepest branch codes each
-    relax substep, then the existing local LARS weight step. Eager (does not use the
-    compiled sweep). Returns (infonce_acc, infonce_loss)."""
+def infonce_relax_step(m, img, txt, mask, relax, lam, tau, anchor_img=True):
+    """Relax-then-step with an InfoNCE coupling error injected at the deepest branch codes
+    each relax substep, then the existing local weight step. Eager. Returns (acc, loss).
+
+    The nudge is SCALE-ROBUST: each code moves by a fraction lam of its own RMS along the
+    (unit) InfoNCE descent direction, so lam is scale-free and not swamped by the recon
+    update_state reset (the old state_lr*lam*du was ~1e-4 on a ~0.7 code => a no-op). When
+    anchor_img, the image code is held (it produces the 0.0420-decodable latents) and only
+    the text code is pulled to match, so recon on the image path is preserved by design."""
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     m.pass_through(img, txt, mask)
     ui, vi = m._infonce_codes
     acc = tf.constant(0.0); loss = tf.constant(0.0)
+
+    def nudge(L, d):
+        sc = tf.sqrt(tf.reduce_mean(tf.square(L.state))) + 1e-6
+        L.state.assign_sub(lam * sc * d / (tf.norm(d) + 1e-9))
+
     for _ in range(relax):
         for L in m.trainable_layers:
             L.update_state()
         du, dv, acc, loss = infonce_grads(ui.state, vi.state, tau)
-        ui.state.assign_sub(ui.state_lr * lam * du)
-        vi.state.assign_sub(vi.state_lr * lam * dv)
+        if not anchor_img:
+            nudge(ui, du)
+        nudge(vi, dv)
     for L in m.trainable_layers:
         L.update_wts(); L.update_b()
     return float(acc), float(loss)
@@ -457,10 +468,10 @@ def main():
     ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--trust-cap", type=float, default=float("inf"))
     ap.add_argument("--conv-activation", default="relu")
-    ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen"])
+    ap.add_argument("--config", default="coco64_156m", choices=["coco64_156m", "coco64_gen", "coco64_wide"])
     ap.add_argument("--infonce-lambda", type=float, default=0.0)
     ap.add_argument("--infonce-tau", type=float, default=0.07)
-    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly", "tdcasc", "tdseq"])
+    ap.add_argument("--train-mode", default="recon", choices=["recon", "gen", "chl", "ebm", "diffusion", "cascade", "tdonly", "tdcasc", "tdseq", "textdistill"])
     ap.add_argument("--gen-every", type=int, default=1)
     ap.add_argument("--gen-relax-k0", type=int, default=None)   # phase-0 (set the latent) relax steps
     ap.add_argument("--gen-relax-k1", type=int, default=None)
@@ -473,6 +484,7 @@ def main():
     ap.add_argument("--hf-weight", type=float, default=0.0)   # high-frequency boost on the bottom pixel error
     ap.add_argument("--noise-temp", type=float, default=0.0)  # initial Langevin temperature for the ebm negative phase
     ap.add_argument("--isometry", type=float, default=0.0)    # soft orthogonalization rate on the image-path weights; 0 = off
+    ap.add_argument("--iso-scale", type=float, default=0.0)   # fixed iso Gram-scale anchor; 0 = each matrix's own scale
     ap.add_argument("--untied", action="store_true")          # untied top-down prediction weights on the image path
     ap.add_argument("--diff-levels", type=int, default=10)    # diffusion noise levels
     ap.add_argument("--diff-sigma-min", type=float, default=0.05)
@@ -481,7 +493,7 @@ def main():
 
     img, txt, mask = D.load_batch(a.pairs, seed=0)
     print(f"data: img{img.shape} txt{txt.shape} mask{mask.shape}", flush=True)
-    CONFIGS = {"coco64_156m": COCO64_156M, "coco64_gen": COCO64_GEN}
+    CONFIGS = {"coco64_156m": COCO64_156M, "coco64_gen": COCO64_GEN, "coco64_wide": COCO64_WIDE}
     m = EncoderEncoderPCN(a.lr, config=CONFIGS[a.config])
     print(f"config={a.config}", flush=True)
     if np.isfinite(a.state_clip):
@@ -512,8 +524,11 @@ def main():
         niso = 0
         for L in m._image_path_layers:
             if hasattr(L, "iso_eta") and hasattr(L, "update_wts"):
-                L.iso_eta = a.isometry; niso += 1
-        print(f"isometry={a.isometry} set on {niso} image-path layers", flush=True)
+                L.iso_eta = a.isometry
+                if a.iso_scale > 0:
+                    L.iso_scale = a.iso_scale
+                niso += 1
+        print(f"isometry={a.isometry} iso_scale={a.iso_scale} set on {niso} image-path layers", flush=True)
     m.img_input.is_clamped = True; m.txt_input.is_clamped = True
     # realize weights so they can be checkpointed
     b0 = slice(0, a.batch)
@@ -581,6 +596,16 @@ def main():
         if wn_best_mgr is not None: wn_best_mgr.save()
         if td_best_mgr is not None: td_best_mgr.save()
 
+    TEXT_LAYERS = []
+    if a.train_mode == "textdistill":
+        # the text sub-network: everything outside the image path (transformers, bridges,
+        # text taps/inters and the text latent edges); image-path weights are never touched
+        imgset = set(id(L) for L in m._image_path_layers)
+        TEXT_LAYERS = [L for L in m.trainable_layers
+                       if id(L) not in imgset and hasattr(L, "update_wts")]
+        print(f"textdistill: local updates on {len(TEXT_LAYERS)} text layers, "
+              f"latents clamped to image-set targets, image path frozen", flush=True)
+
     diff_sigmas = np.geomspace(a.diff_sigma_min, a.diff_sigma_max, a.diff_levels).astype(np.float32)
     if a.untied and a.train_mode == "tdseq":
         # top-down stage groups: reversed construction order approximates latent-to-pixel depth
@@ -620,6 +645,33 @@ def main():
                     cascade_step(m, img[bi], txt[bi], mask[bi],
                                  a.gen_relax_k0 or a.relax, a.gen_relax_k1 or a.relax,
                                  a.gen_lr or a.lr, a.free_state_lr or 0.25, update_bias=False)
+            elif a.train_mode == "textdistill":
+                # both-ends-clamped PC recon of the TEXT sub-network: relax the recon
+                # equilibrium to capture this batch's image-set latents (the codes the
+                # healed decode renders), then clamp caption below + latents above and
+                # take local weight steps on text layers only. Fully local, no backprop.
+                for _ in range(a.relax):
+                    for L in m.trainable_layers:
+                        L.update_state()
+                targets = [tf.identity(Li.state) for Li, Lt in m._shared_latent_pairs]
+                m.img_input.is_clamped = False
+                m.pass_through(tf.convert_to_tensor(img[bi] * 0), tf.convert_to_tensor(txt[bi]),
+                               tf.convert_to_tensor(mask[bi]))
+                for (Li, Lt), tg in zip(m._shared_latent_pairs, targets):
+                    if isinstance(Li.state, tf.Variable):
+                        Li.state.assign(tg)
+                    else:
+                        Li.state = tg
+                    Li.is_clamped = True; Lt.is_clamped = True
+                for _ in range(a.relax):
+                    for L in TEXT_LAYERS:
+                        L.update_state()
+                for L in TEXT_LAYERS:
+                    L.update_wts()
+                    if hasattr(L, "update_b"):
+                        L.update_b()
+                for (Li, Lt) in m._shared_latent_pairs:
+                    Li.is_clamped = False; Lt.is_clamped = False
             elif a.train_mode == "tdonly":
                 # teacher-forced decode distillation: the forward pass set every state bottom-up,
                 # each untied edge takes its local d_pred step toward the state below. NO
@@ -651,7 +703,12 @@ def main():
                              a.gen_lr or a.lr, a.free_state_lr or 0.25)
             step += 1
             if step % a.energy_every == 0:
-                e, mx = energy_stats(m)
+                if a.train_mode == "textdistill":
+                    # judge on the TEXT sub-network only (the image path sees a zero image here)
+                    class _TV: trainable_layers = TEXT_LAYERS
+                    e, mx = energy_stats(_TV)
+                else:
+                    e, mx = energy_stats(m)
                 msg = f"[step {step} ep {ep}] energy={e:.5f} max_abs_state={mx:.3f} ({(time.time()-t0)/step:.2f}s/step)"
                 if a.infonce_lambda > 0:
                     msg += f" infonce_acc={ia:.3f} infonce_loss={il:.4f}"
