@@ -1,0 +1,71 @@
+{
+  "config": {
+    "smoke": true,
+    "arms": [
+      "A"
+    ],
+    "wmul": 0.1,
+    "params": 237644,
+    "N_have": 18,
+    "N_train": 12,
+    "N_eval": 6,
+    "RES": 16,
+    "CAPLEN": 16,
+    "V": 24,
+    "lr": 0.02,
+    "batchj": 2,
+    "batchj_requested": 2,
+    "epochs": 4,
+    "joint_steps": 24,
+    "ramp": 2,
+    "jointw": 0.0,
+    "seed": 0,
+    "n_infer": 2,
+    "ckpt_every": 0,
+    "lowhost": false
+  },
+  "arm_A": {
+    "name": "A",
+    "diverged": false,
+    "move": 0.11157299848452082,
+    "elapsed": 0.027128533522288004,
+    "train": {
+      "M": 4,
+      "diversity": 1.163389417135426e-06,
+      "out_range": 5.781960984071096e-07,
+      "retr": 0.25,
+      "hits": 1,
+      "chance": 0.25,
+      "recon": 0.1216056122739535,
+      "recon_base": 0.03142998740077019,
+      "i2t": 0.359375,
+      "align_cos": 0.16116631031036377,
+      "lat_retr": 0.5,
+      "lat_hits": 2,
+      "unif_img": -1.8028712272644043,
+      "unif_txt": -1.8756346702575684
+    },
+    "heldout": {
+      "M": 6,
+      "diversity": 1.2577772406193152e-06,
+      "out_range": 6.868115936716398e-07,
+      "retr": 0.16666666666666666,
+      "hits": 1,
+      "chance": 0.16666666666666666,
+      "recon": 0.12384990942693636,
+      "recon_base": 0.03875284269452095,
+      "i2t": 0.34375,
+      "align_cos": 0.06632459908723831,
+      "lat_retr": 0.16666666666666666,
+      "lat_hits": 1,
+      "unif_img": -2.3710286617279053,
+      "unif_txt": -1.1550757884979248
+    },
+    "postwarm": null,
+    "peak_gpu_gb": null,
+    "lat_hits": 1,
+    "sigma": 0.0
+  },
+  "i2t_base_train": 0.22916666666666666,
+  "i2t_base_eval": 0.22916666666666666
+}

@@ -35,15 +35,16 @@
 
 - [ ] **Step 1: Confirm the working tree is pre-change.** Run `git status --short conv_pcn_layer.py dense_pcn_layer.py` and confirm NEITHER layer file is modified. If either is modified, STOP and escalate (the reference would be contaminated).
 
-- [ ] **Step 2: Generate the COCO64 reference signature on the L4.**
+- [ ] **Step 2: Generate the COCO64 reference signature on the L4 and fetch it.** Save it to `gate_ref_coco64.npz` at the cluster repo root (not `/tmp`) so `--fetch` can tar it back.
 ```
 tools/clusterrun.sh --name gateref --gpu L4 --mem 40G --cpus 4 --time 00:20:00 \
-  --sync "rewrite_gate.py encoder_encoder_pcn.py pcn_config.py conv_pcn_layer.py transformer_pcn_layer.py dense_pcn_layer.py" \
-  --run "python3 tools/rewrite_gate.py --config coco64 --relaxed --relax-steps 5 --weight-steps 2 --save /tmp/gate_ref_coco64.npz && python3 -c \"import numpy as np; d=np.load('/tmp/gate_ref_coco64.npz'); print('REF nlayers=', len(d.files))\""
+  --sync "tools/rewrite_gate.py encoder_encoder_pcn.py pcn_config.py conv_pcn_layer.py transformer_pcn_layer.py dense_pcn_layer.py" \
+  --run "python3 tools/rewrite_gate.py --config coco64 --relaxed --relax-steps 5 --weight-steps 2 --save gate_ref_coco64.npz" \
+  --fetch "gate_ref_coco64.npz"
 ```
-Expect a `GOLDEN ... nlayers=<N>` line and `REF nlayers=<N>` with N > 0. Note N (the COCO64 layer count) for Task 4.
+Expect a `GOLDEN ... nlayers=<N>` line with N > 0, and the file fetched locally to the repo root. Note N (the COCO64 layer count) for Task 4.
 
-- [ ] **Step 3: Fetch the reference into the repo.** `tools/clusterrun.sh` fetches run outputs; copy the fetched `gate_ref_coco64.npz` to `docs/superpowers/gate_ref_coco64.npz`. If clusterrun did not fetch it, re-run with an explicit fetch of `/tmp/gate_ref_coco64.npz`, or `scp slsang29@hpc.colby.edu:encoder_encoder_PCN/gate_ref_coco64.npz docs/superpowers/`. Confirm the file exists locally and is non-empty.
+- [ ] **Step 3: Move the reference into docs.** Move the fetched `gate_ref_coco64.npz` (repo root) to `docs/superpowers/gate_ref_coco64.npz`. Confirm it exists and is non-empty.
 
 - [ ] **Step 4: Commit the reference.**
 ```bash
