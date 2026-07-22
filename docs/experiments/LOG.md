@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-21 (a) skip-readout DECODE settles it, caption-to-image blocked, coupling limit is real (empirical)
+- config or command, latent_source_diag.py --skip-readout, fit the WIDE text feature (2048-8192 dim, beneath the narrow inter) -> the image-clamped SHARED latent, low-reg (lam 0.1) in-sample over 2000, predict the grid captions' latent, decode via the identical boost path (job 9381)
+- result, skip in-sample R2 caps at 0.68 (deepest tap; shallow 0.29-0.37) -- did NOT interpolate to ~1.0 despite p>n (8192 feats, 2000 samples), so the p>n memorization worry does NOT materialize, the feature genuinely lacks the info. DECODE skip mse 0.0702 vs image-ref 0.0420 vs template 0.0801 = closes only ~26 percent of the gap; the grid decode(skip) row is the template with faint modulation, none of the per-image structure that img-set / swap-s0 show
+- takeaway, the empirical decode settles what the p>n R2 could not, a direct-edge in-sample readout with memorization capacity STILL cannot render captions, so caption-to-image is genuinely blocked at 156M/2k and the cross-modal coupling limit is REAL (representational). Confirmed across six routes now (text ridge, textdistill x3, InfoNCE b8/b32, nonlinear RBF, and this skip decode). The "definitive" I walked back is re-earned on empirical ground. NEXT, the capacity ladder (this text-capacity limit IS its thesis). Deliverables stand, image-to-image 0.0402 + the mechanistic coupling-failure characterization
+
 ### 2026-07-21 (addendum) the confirmatory nonlinear probe is NOT decisive, p>n inflation, "blocked" was overstated
 - config or command, job 9374 tools/text_nl_dense_ceiling.py, RBF vs linear from the UNCOLLAPSED wide text feature (featdim 2048-8192) to the image-set latents, 80/20 split, both encoders
 - result, linear TRAIN R2 0.35-0.80 (0.80 at the deepest structure-carrying tap) but TEST R2 strongly negative (to -4.8); RBF TRAIN 0.29-0.49, TEST ~0. The wide feature is 8192-dim with 1600 train samples = p>n, so the high linear in-sample fit is largely interpolation/memorization, not proof of signal; RBF (more regularized) tops out ~0.49 in-sample

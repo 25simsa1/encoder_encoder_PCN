@@ -129,6 +129,8 @@ def main():
     ap.add_argument("--rms-match", action="store_true")
     ap.add_argument("--multi-branch", action="store_true")   # all latents inject via the boost
     ap.add_argument("--td-affine", action="store_true")       # td ckpt includes c_td (post-affine era)   # rescale each decode state to its forward RMS during the cascade (kills gain compounding, preserves content)
+    ap.add_argument("--skip-readout", action="store_true")    # (a) fit wide-text-feature -> image latent, decode the prediction
+    ap.add_argument("--skip-lam", type=float, default=0.1)    # ridge reg for the skip readout (low = in-sample memorize)
     ap.add_argument("--out", default="latent_source.png")
     a = ap.parse_args()
     global GAMMA, MULTI
@@ -220,6 +222,47 @@ def main():
     rows = [("true", img)]
     rows.append(("decode(img-set)", decode_from(lat_img, "DECODE image-set latents")))
     rows.append(("decode(txt-set)", decode_from(lat_txt, "DECODE text-set latents")))
+    if a.skip_readout:
+        # (a) skip-readout: fit the WIDE text feature (the dense_relu beneath the narrow text
+        # inter, 2048-8192 dim) -> the image-clamped shared latent, low-reg, in-sample over all
+        # 2000 pairs; then predict the latent for the k grid captions and decode it. This gives
+        # the text path a direct edge into the SHARED latent, bypassing the inter bottleneck.
+        # p>n regime, so a positive result is an OVERFIT demo (memorized caption->its image),
+        # not generalization.
+        fimg, ftxt, fmask = D.load_batch(2000, seed=0)
+        NT = len(pairs)
+        Xf = [[] for _ in range(NT)]; Ya = [[] for _ in range(NT)]
+        for s in range(0, 2000, a.k):
+            ib = T(np.asarray(fimg[s:s+a.k], np.float32)); tb = T(np.asarray(ftxt[s:s+a.k], np.float32))
+            mb = T(np.asarray(fmask[s:s+a.k], np.float32))
+            if ib.shape[0] != a.k:
+                continue
+            m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+            m.pass_through(ib, tb, mb)
+            for _ in range(30):
+                for L in m.trainable_layers:
+                    L.update_state()
+            for i, (a_, _) in enumerate(pairs):
+                Ya[i].append(a_.state.numpy().copy())
+            m.pass_through(tf.zeros_like(ib), tb, mb)   # text-clamped pass-through -> wide text feature
+            for i, (_, b_) in enumerate(pairs):
+                st = b_.prev_layer.prev_layer.state.numpy()
+                Xf[i].append(st.reshape(st.shape[0], -1).copy())
+        m.img_input.is_clamped = True; m.txt_input.is_clamped = True
+        m.pass_through(tf.zeros_like(T(img)), T(txt), T(mask))   # grid features
+        lat_skip = []
+        for i, (a_, b_) in enumerate(pairs):
+            X = np.concatenate(Xf[i], 0).astype(np.float64); Y = np.concatenate(Ya[i], 0).astype(np.float64)
+            mu, sd = X.mean(0, keepdims=True), X.std(0, keepdims=True) + 1e-6
+            Xs = (X - mu) / sd; my = Y.mean(0, keepdims=True)
+            W = np.linalg.solve(Xs.T @ Xs + a.skip_lam * np.eye(Xs.shape[1]), Xs.T @ (Y - my))
+            pin = Xs @ W + my
+            r2 = 1.0 - ((Y - pin) ** 2).sum() / (((Y - my) ** 2).sum() + 1e-9)
+            gf = b_.prev_layer.prev_layer.state.numpy().reshape(a.k, -1).astype(np.float64)
+            lat_skip.append((((gf - mu) / sd) @ W + my).astype(np.float32))
+            print(f"skip tap {i}: featdim={X.shape[1]} in-sample R2={r2:.4f}", flush=True)
+        rows.append(("decode(skip)", decode_from(lat_skip, "DECODE skip-readout (wide-text-feat->latent, in-sample)")))
+
     for s in range(len(pairs)):
         sw = list(lat_txt); sw[s] = lat_img[s]
         rows.append((f"swap s{s}", decode_from(sw, f"DECODE swap scale {s} (img at s{s}, txt elsewhere)")))
