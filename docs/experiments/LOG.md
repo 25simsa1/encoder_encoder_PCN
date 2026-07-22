@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-22 data-scale curve (PC jointw=1.0): gap trends right but 20k confounded by PC fitting failure (undertraining)
+- config or command, PC jointw=1.0, 45ep batchj64 train2017, 3 seeds at 2k (9394-96) and 20k (9397-99); compare to 8k triplet and BP baselines
+- result, PC held-out hits (chance 1): 2k 2/1/3, 8k 3/4/1, 20k 2/0/1 -- FLAT near chance at every data scale. BP rises with data (E1 2k~chance, E1L 8k 4-7, 20k 11-13). BUT PC TRAIN fit: 2k~1.0, 8k 0.996, 20k 0.083/0.672/0.0007 = FAILED to fit at 20k (high seed variance = undertraining, warmup fixed 1500 gives ~5 passes at 20k vs ~48 at 2k)
+- takeaway, the PC-vs-BP held-out gap appears to WIDEN with data (encouraging direction) BUT the widest point (20k) is CONFOUNDED: PC didn't fit train coupling there, so it's not a matched-fit comparison. Clean matched-fit contrast still only at 8k (small/overlapping, PC 2.7 vs BP 5.3 mean). Cannot yet distinguish 'gap widens with scale' from '20k undertrained'. LAUNCHED 20k fitting probe (job 9400, warmup 6000 + 150ep, seed0) to resolve: if PC fits train at 20k with a real budget and still fails held-out while BP gets 12 -> strong clean wide-gap point; if it can't fit even then -> 'PC coupling does not scale' (weaker story). Honest: paper viability still unresolved, hinges on this + the ladder
+
 ### 2026-07-21 GATING EXPERIMENT resolves the confound: PC fits train coupling at 8k with jointw=1.0, still fails held-out (clean contrast now exists)
 - config or command, run_coupling_scale.py on Colby (data /home/slsang29/coco_scale train2017 22k pairs), 8k/2k-eval, 45ep, BATCHJ 64, jointw sweep 0.1/0.3/1.0 (jobs 9382-9384). Tests whether coupling maintained through the joint phase lets PC FIT training coupling at 8k (the earlier jointw=0 runs collapsed train coupling to chance = the confound)
 - result, TRAIN latent retrieval at 8k (chance 0.0005): jointw 0.1 -> 0.0013 (washes), 0.3 -> 0.0107 (partial), 1.0 -> 0.996 (FITS, matches BP's ~1.0). recon stayed healthy 0.024 (no destabilization). HELD-OUT stayed at chance for all (best 3/2000, align_cos collapses 0.95->0.05 as jointw rises). So with jointw=1.0 PC memorizes the training cross-modal pairing as well as backprop but does NOT generalize it
