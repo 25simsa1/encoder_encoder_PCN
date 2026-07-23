@@ -26,6 +26,12 @@ full tuning sweep. The results identify a credit-assignment gap: a local rule ca
 contrastive objective by arranging its latent geometry on the training set (alignment) without
 propagating pair-discriminative pressure into its encoders (binding).
 
+## Figures
+
+- figs/fig1_architecture.png -- the byte-matched two-arm setup
+- figs/fig2_headline.png -- 3-seed category lift + instance hits
+- figs/fig3_mechanism.png -- per-category transfer + per-tap train-solution anatomy
+
 ## 1. Setup
 
 - Architecture (identical in both arms, byte-matched init and split): 4-stage conv image
