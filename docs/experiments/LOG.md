@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-23 headline REPLICATED across 3 seeds -- the paper's result table is complete
+- config or command, PC 20k stable recipe seeds 1/2 (9423/9424), E1L 20k seeds 1/2 retrained w/ ckpts (9437), per-seed category probes seed-wise paired on matching splits (9438)
+- result, category precision@10 lift (held-out, matched train fit): BP 2.64 / 2.43 / 2.47x; PC 1.23 / 1.31 / 1.27x. Instance hits BP 18/12/11 (11-17 sigma), PC 3/7/2. All PC seeds stable and fitting (0.997-0.999); all BP fit-gate PASS (0.95-0.98)
+- takeaway, the category-transfer dissociation is SEED-ROBUST with non-overlapping tight ranges. The evidence set for the paper is complete: matched-fit setup, headline table, dupe audit (hits are category structure, not leakage), mechanism anatomy (tap0 vs distributed memorization), instability edges + tuning sweep appendix. NEXT: the writing pass -- reframe docs/paper/PAPER_DRAFT.md around this result
+
 ### 2026-07-22 HEADLINE FIGURE: category-transfer dissociation at matched fit (BP 2.64x lift, PC 1.23x)
 - config or command, tools/category_probe.py (job 9431): held-out i->t category precision@10 over 1716 keyword-categorized eval items, BP (e1l 20k ckpt, train fit 0.981) vs PC (cs_B 20k jointw1.0 lr5e-3 ckpt, train fit 0.997), same split
 - result, BP 0.2146 vs base 0.0813 = 2.64x, systematic (elephant 7.2x, plane 6.1x, cat 5.6x, food 5.0x, train 4.3x, sports 3.8x, bathroom 3.2x). PC 0.0998 vs 0.0813 = 1.23x, flat across categories
