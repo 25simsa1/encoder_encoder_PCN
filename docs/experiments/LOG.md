@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-22 HEADLINE FIGURE: category-transfer dissociation at matched fit (BP 2.64x lift, PC 1.23x)
+- config or command, tools/category_probe.py (job 9431): held-out i->t category precision@10 over 1716 keyword-categorized eval items, BP (e1l 20k ckpt, train fit 0.981) vs PC (cs_B 20k jointw1.0 lr5e-3 ckpt, train fit 0.997), same split
+- result, BP 0.2146 vs base 0.0813 = 2.64x, systematic (elephant 7.2x, plane 6.1x, cat 5.6x, food 5.0x, train 4.3x, sports 3.8x, bathroom 3.2x). PC 0.0998 vs 0.0813 = 1.23x, flat across categories
+- takeaway, THE paper result: at matched training fit, backprop acquires transferable category-level cross-modal structure; local PC memorizes pair bindings without acquiring even category transfer. The instance top-1-in-2000 metric was burying this (12-vs-3 hits -> 21.5 vs 10.0 percent on 1716 items); it also explains the cache/scale noise (instance metric fragile, category structure stable). Remaining for the paper: PC seeds 1/2 (running), category probe across seeds for error bars, same probe on the 8k ckpts for a scale trend, then write
+
 ### 2026-07-22 dupe audit CLEARS the money cell and SHARPENS the story: BP's transfer is CATEGORY-level binding, PC lacks even that
 - config or command, E1L 20k-original retrained w/ ckpt (9427/9429: reproduced at 18/2000 +17sigma, now effectively a 4th seed alongside 11/13/13), then tools/dupe_audit.py (9430): recompute eval hits (union t2i+i2t = 35/2000, chance ~1-2), nearest-TRAIN pixel RMSE for hits vs non-hits + caption comparison + visual grid
 - result, NEAR-DUPE HYPOTHESIS REJECTED: hits' nearest-train RMSE ~0.17 (true dupes <0.05) and most nearest-train images are unrelated scenes (racer->sheep, hydrant->jet). Mild closest-decile enrichment (3-4x) is category clustering, not duplication. THE HITS CLUSTER IN FREQUENT CATEGORIES: planes-in-sky, bathrooms/toilets, field animals, dogs+hydrants => BP's held-out coupling is real but CATEGORY-level binding (sky-plane<->'flying', bathroom<->'toilet'), not instance binding
