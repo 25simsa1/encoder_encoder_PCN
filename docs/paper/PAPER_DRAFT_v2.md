@@ -122,12 +122,105 @@ image-latent value (value binding) -- the caption-to-image decode stays at a tem
 six alignment routes (closed-form ridge, three distillation variants, InfoNCE at two batch
 sizes).
 
-## 6. Related work (to expand)
+## 6. Related work
 
-PC/local-learning at scale (Millidge, Salvatori, Song, Alonso et al.); BP-vs-PC equivalence
-results and their fixed-prediction assumptions; contrastive representation learning and
-alignment/uniformity analyses (Wang & Isola); CLIP-scale cross-modal learning; critiques of
-retrieval-pool metrics.
+**Predictive coding and its relation to backpropagation.** Predictive coding originates as a
+model of cortical inference (Rao & Ballard, 1999; Friston, 2005), in which reciprocal
+prediction-error signals settle a network to an equilibrium. A recent line shows that PC's
+local relax-then-update dynamics can *approximate* or, under specific choices, *exactly recover*
+the backpropagation gradient: Whittington & Bogacz (2017) for layered networks, Millidge et al.
+(2022) along arbitrary computation graphs, Song et al. (2020) with an exact-backprop
+construction, and Salvatori et al. (2022) on general graph topologies (see Salvatori et al.,
+2023, for a survey). These results are constructive -- they specify a regime (fixed-prediction
+assumptions, small output nudges, particular update orderings) engineered to make PC behave like
+backprop. Our question is the complementary one. We do not tune PC toward backprop; we run the
+local rule under its own dynamics at the strongest stable, fit-matched configuration we can find
+(Sec. 4) and ask what it learns when it is *not* emulating backprop. The finding -- matched
+training fit, dissociated held-out transfer -- is invisible to the equivalence literature
+because it lives in generalization, not in the training gradient the equivalence theorems match.
+
+**Biologically motivated learning at scale.** The closest prior result is that local and
+feedback-based rules underperform backpropagation as tasks scale: Bartunov et al. (2018) showed
+target propagation and feedback alignment lose to backprop on ImageNet-scale classification, and
+Lillicrap et al. (2020) survey the credit-assignment problem this raises for cortex. That work
+frames the gap as a *performance* gap in absolute accuracy. Our contribution is finer: at
+*matched* training fit -- with performance on the training objective held equal -- the rules
+still dissociate in the *kind* of representation they build, which is a claim about inductive
+bias rather than capability. To test whether that bias is a property of locality in general or
+of our particular PC instantiation, we add a feedback-alignment arm (Lillicrap et al., 2016;
+Nøkland, 2016; Launay et al., 2020) as a second local rule under the identical objective and
+readout; equilibrium propagation (Scellier & Bengio, 2017) is a natural third rule for future
+work.
+
+**Contrastive learning, alignment, and uniformity.** Our objective is symmetric InfoNCE (van den
+Oord et al., 2018; Chen et al., 2020), and our diagnostic vocabulary follows the alignment /
+uniformity decomposition of Wang & Isola (2020). Their analysis treats alignment (matched pairs
+close on the hypersphere) as a proxy for a good contrastive representation. We find a case where
+that proxy detaches from the underlying feature: the local rule achieves training-set alignment
+by *arranging latent geometry* while its encoders never acquire pair-discriminative structure,
+so alignment is high on the training set yet nothing transfers. We name this "alignment without
+binding" and offer it as a caution that alignment/uniformity metrics measured on the training
+distribution can be satisfied without the encoder learning what makes pairs discriminable.
+
+**Cross-modal representation learning.** Large-scale image-text contrastive models learn
+*transferable* cross-modal structure (Radford et al., 2021, whose central claim is precisely
+transferability), operating four or more orders of magnitude above our data regime. We make no
+claim at that scale; our setup deliberately holds architecture, objective, data, and fit fixed
+and varies only the learning rule, to isolate the rule's contribution to whether category-level
+cross-modal structure emerges at all.
+
+**Memorization, generalization, and evaluation.** Deep networks can memorize arbitrary training
+signal while still, separately, generalizing (Zhang et al., 2017; Arpit et al., 2017); our
+mechanism section sharpens this into *where* each rule stores the memorized pairing (the local
+rule concentrates it in its shallowest code; backprop distributes it across depth) and ties the
+distributed solution to the transferable one. Finally, our choice of category precision@10 over
+instance top-1 retrieval reflects known fragility in small-pool retrieval metrics (Musgrave et
+al., 2020): the instance metric is cache- and scale-sensitive here (Sec. 2, Sec. 5), while the
+category metric is the stable phenomenon underneath.
+
+### References (venues/years to be verified in a final citation pass)
+
+- Arpit, D., Jastrzębski, S., Ballas, N., et al. (2017). A Closer Look at Memorization in Deep
+  Networks. ICML.
+- Bartunov, S., Santoro, A., Richards, B., Marris, L., Hinton, G., Lillicrap, T. (2018).
+  Assessing the Scalability of Biologically-Motivated Deep Learning Algorithms and Architectures.
+  NeurIPS.
+- Chen, T., Kornblith, S., Norouzi, M., Hinton, G. (2020). A Simple Framework for Contrastive
+  Learning of Visual Representations (SimCLR). ICML.
+- Friston, K. (2005). A theory of cortical responses. Philosophical Transactions of the Royal
+  Society B.
+- Launay, J., Poli, I., Boniface, F., Krzakala, F. (2020). Direct Feedback Alignment Scales to
+  Modern Deep Learning Tasks and Architectures. NeurIPS.
+- Lillicrap, T. P., Cownden, D., Tweed, D. B., Akerman, C. J. (2016). Random synaptic feedback
+  weights support error backpropagation for deep learning. Nature Communications.
+- Lillicrap, T. P., Santoro, A., Marris, L., Akerman, C. J., Hinton, G. (2020). Backpropagation
+  and the brain. Nature Reviews Neuroscience.
+- Millidge, B., Tschantz, A., Buckley, C. L. (2022). Predictive Coding Approximates Backprop
+  Along Arbitrary Computation Graphs. Neural Computation.
+- Musgrave, K., Belongie, S., Lim, S.-N. (2020). A Metric Learning Reality Check. ECCV.
+- Nøkland, A. (2016). Direct Feedback Alignment Provides Learning in Deep Neural Networks.
+  NeurIPS.
+- van den Oord, A., Li, Y., Vinyals, O. (2018). Representation Learning with Contrastive
+  Predictive Coding. arXiv:1807.03748.
+- Radford, A., Kim, J. W., Hallacy, C., et al. (2021). Learning Transferable Visual Models From
+  Natural Language Supervision (CLIP). ICML.
+- Rao, R. P. N., Ballard, D. H. (1999). Predictive coding in the visual cortex. Nature
+  Neuroscience.
+- Salvatori, T., Song, Y., Lukasiewicz, T., Bogacz, R., Xu, Z. (2022). Learning on Arbitrary
+  Graph Topologies via Predictive Coding. NeurIPS.
+- Salvatori, T., Mali, A., Buckley, C. L., et al. (2023). Brain-Inspired Computational
+  Intelligence via Predictive Coding. arXiv:2308.07870.
+- Scellier, B., Bengio, Y. (2017). Equilibrium Propagation: Bridging the Gap between
+  Energy-Based Models and Backpropagation. Frontiers in Computational Neuroscience.
+- Song, Y., Lukasiewicz, T., Xu, Z., Bogacz, R. (2020). Can the Brain Do Backpropagation? Exact
+  Implementation of Backpropagation in Predictive Coding Networks. NeurIPS.
+- Wang, T., Isola, P. (2020). Understanding Contrastive Representation Learning through Alignment
+  and Uniformity on the Hypersphere. ICML.
+- Whittington, J. C. R., Bogacz, R. (2017). An Approximation of the Error Backpropagation
+  Algorithm in a Predictive Coding Network with Local Hebbian Synaptic Plasticity. Neural
+  Computation.
+- Zhang, C., Bengio, S., Hardt, M., Recht, B., Vinyals, O. (2017). Understanding Deep Learning
+  Requires Rethinking Generalization. ICLR.
 
 ## 7. Limitations (stated plainly)
 
