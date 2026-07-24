@@ -29,8 +29,7 @@ propagating pair-discriminative pressure into its encoders (binding).
 ## Figures
 
 - figs/fig1_architecture.png -- the byte-matched two-arm setup
-- figs/fig2_headline.png -- 3-seed category lift + instance hits
-- figs/fig3_mechanism.png -- per-category transfer + per-tap train-solution anatomy
+- figs/fig2_results.pdf -- 3-panel hero results strip (matched training fit / category transfer / per-category dumbbells)
 
 ## 1. Setup
 
@@ -65,6 +64,16 @@ Non-overlapping ranges across seeds. BP's lift is systematic per category (seed 
 (~1x) essentially everywhere. Instance-level top-1-in-2000 shows the same direction (BP 11-18
 vs PC 2-7) but is fragile (cache- and scale-sensitive; Sec. 5) -- the category metric is the
 stable phenomenon underneath.
+
+**Instance hits (top-1 in 2000 eval items)**
+
+| seed | BP hits | PC hits |
+|---|---|---|
+| 0 | 18 | 3 |
+| 1 | 12 | 7 |
+| 2 | 11 | 2 |
+
+Base rate ~1 (chance); the dissociation is consistent across seeds.
 
 ## 3. The transfer is category structure, not leakage (dupe audit)
 
