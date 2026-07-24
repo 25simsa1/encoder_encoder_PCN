@@ -554,8 +554,12 @@ print(f"\nsaved: {out}",flush=True)
 
 # ============================ PER-RUNG VERDICT (pre-registered branches) ============================
 print(f"\n==================== CAPACITY RUNG VERDICT (wmul={WMUL}, {NP/1e9:.2f}B params, bar >3/{NEV}) ====================",flush=True)
-a=results.get("arm_A")
-if a is None: print("VERDICT: no arm A in this run.",flush=True)
+_prim="arm_A" if "arm_A" in results else ("arm_B" if "arm_B" in results else None)  # stability-recipe ladder runs arm B alone
+a=results.get(_prim) if _prim else None
+if a is not None and not a.get("diverged") and a.get("train") is not None:
+    _fit=a["train"].get("lat_retr")
+    if _fit is not None: print(f"[{_prim}] MATCHED-FIT GATE: train lat_retr={_fit:.4f} (rung counts only if >=0.95 alongside the BP baseline's)",flush=True)
+if a is None: print("VERDICT: no A/B arm in this run.",flush=True)
 elif a["diverged"]: print("VERDICT: DIVERGED. Report with trace; this rung is a stability datum, not a coupling datum.",flush=True)
 elif a["move"] is not None and a["move"]<MOVE_MIN: print(f"VERDICT: VOID (move {a['move']*100:.0f}% < {MOVE_MIN*100:.0f}% floor). Undertrained, not a negative.",flush=True)
 else:
