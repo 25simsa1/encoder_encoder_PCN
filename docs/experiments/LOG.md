@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-24 FA at the BP-matched rate (1e-2) FAILS to fit (dead-model collapse); lr retries launched
+- config or command, FA 9515 (FA_MODE=random, 156M/20k, 3 seeds, lr 1e-2 = E1L default); on the dead-model result, retries seed 0 at E1L_LR 5e-3/2e-3/1e-3 (jobs 9549/9550/9551, MIG); E1L 330M baseline 9547 done (fits + crosses, held-out 15/9/10 per 2000)
+- result, FA lr 1e-2 seed 0/1: TRAIN lat_retr 0.004/0.003 = fit gate FAIL, infonce PINNED at ~5.53 (= ln256 = chance floor) from start = the LARS dead-model collapse the repo documents for BP at 80k, hit here by FA's misaligned random-feedback gradients at 20k. Transpose gate already proved the wiring == backprop (B=W), so this is an FA OPTIMIZATION failure at this rate, not a bug. Per the pre-registered gate policy (fit fail -> retry lower lr before interpreting transfer) launched the 3 lower rates
+- takeaway, FA is not yet a clean matched-fit control. If a lower lr fits (train >= 0.95) -> run 3 seeds there + category_probe; if none fit across 5e-3/2e-3/1e-3 -> honest finding is "FA cannot be stably trained to fit this coupling at the E1L budget", a locality-side instability edge parallel to PC's (2e-2 divergence, LARS 40-80k dead model), reportable but not a transfer comparison. Monitor byalnx7ew
+
 ### 2026-07-24 rung-0 anchor PASSED (driver reproduces the money cell); 330M/700M rungs queued
 - config or command, job 9514 done (5h15, COMPLETED clean); then queued category_probe on the anchor ckpt (9544) + PC 330M/700M 20k (9545/9546, WMUL 2.18/3.18, L4) + E1L 330M/700M 20k x3 seeds (9547/9548, L40S)
 - result, ANCHOR arm_B train lat_retr=0.9973 == money cell 9406 (0.9973) => the capacity-driver fork reproduces the recipe at the reference point, gate PASSED. Secondary metrics: held-out instance lat 5/2000 (+4.0 sigma) vs 9406's 3/2000, align 0.025, unif -3.87/-3.87, recon 0.0186 (base 0.0674), diversity 0.431, move 184.6%. The driver auto-flagged "BRANCH (b) CANDIDATE" because 5>3, but that is the documented fragile instance metric (chance ~1, single digits, seed/cache noise) not a real crossing; the headline is the category metric (9544 will confirm ~1.2x PC lift reproduces). ckpt ~/ladder/w1.5_20k/cap_B_w1.5_seed0.npz
