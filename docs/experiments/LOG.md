@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-23 ICLR results figure shipped (3-panel hero strip)
+- config or command, tools/make_results_figure.py (new, numbers inline tracing to catprobe_9431/catall_9438/E1L logs) per plan docs/superpowers/plans/2026-07-23-results-figure.md; commits 21d5ce3 + 406a86c + d44fabe
+- result, docs/paper/figs/fig2_results.{pdf,png} 6.75x2.2in: (a) matched-fit per-seed paired dots, (b) category-transfer bars w/ seed dots + base-rate line (~2.5x vs ~1.3x), (c) 13-category dumbbells log-x sorted by BP. PAPER_DRAFT_v2.md Figures section now points at it, instance hits (BP 18/12/11 vs PC 3/7/2) moved to a table; old fig2/fig3 de-referenced but kept on disk. Reviewed twice (spec + whole-branch), fonts embedded, ready to merge
+- takeaway, the paper's results figure is done; deferred to the LaTeX pass: ICLR column width vs the 6.75in strip, which instance-hits table survives (new one duplicates the Sec-2 headline columns, drops sigma), and Sec 5 now has no figure since fig3 retired
+
 ### 2026-07-23 headline REPLICATED across 3 seeds -- the paper's result table is complete
 - config or command, PC 20k stable recipe seeds 1/2 (9423/9424), E1L 20k seeds 1/2 retrained w/ ckpts (9437), per-seed category probes seed-wise paired on matching splits (9438)
 - result, category precision@10 lift (held-out, matched train fit): BP 2.64 / 2.43 / 2.47x; PC 1.23 / 1.31 / 1.27x. Instance hits BP 18/12/11 (11-17 sigma), PC 3/7/2. All PC seeds stable and fitting (0.997-0.999); all BP fit-gate PASS (0.95-0.98)
