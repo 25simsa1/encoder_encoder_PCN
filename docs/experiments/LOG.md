@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-24 rung-0 anchor PASSED (driver reproduces the money cell); 330M/700M rungs queued
+- config or command, job 9514 done (5h15, COMPLETED clean); then queued category_probe on the anchor ckpt (9544) + PC 330M/700M 20k (9545/9546, WMUL 2.18/3.18, L4) + E1L 330M/700M 20k x3 seeds (9547/9548, L40S)
+- result, ANCHOR arm_B train lat_retr=0.9973 == money cell 9406 (0.9973) => the capacity-driver fork reproduces the recipe at the reference point, gate PASSED. Secondary metrics: held-out instance lat 5/2000 (+4.0 sigma) vs 9406's 3/2000, align 0.025, unif -3.87/-3.87, recon 0.0186 (base 0.0674), diversity 0.431, move 184.6%. The driver auto-flagged "BRANCH (b) CANDIDATE" because 5>3, but that is the documented fragile instance metric (chance ~1, single digits, seed/cache noise) not a real crossing; the headline is the category metric (9544 will confirm ~1.2x PC lift reproduces). ckpt ~/ladder/w1.5_20k/cap_B_w1.5_seed0.npz
+- takeaway, ladder cleared to proceed. 20k-primary rungs launched for the pre-A100 read at 330M/700M; 8k banked-bar runs held until the 700M read (measured autonomous batch). BP ckpts for the per-rung category probe exist at ~/cs_gate/e1l_20k_audit for 156M; new e1l_w{2.18,3.18} rungs saving their own. Monitor bya0y6w7n
+
 ### 2026-07-24 campaign LAUNCHED: rung-0 anchor (9514) + FA 3-seed (9515) on Colby
 - config or command, sbatch ~/ladder/anchor.sbatch (cap driver arm B, WMUL 1.5, 20k, stability recipe, seed 0, L4 n7, 16h) + ~/ladder/fa.sbatch (FA_MODE=random, 156M/20k, E1_SEEDS=0,1,2, E1_SAVE=1, MIG n10, 12h); drivers + category/mechanism probes synced to cluster experiments//tools/
 - result, both RUNNING and healthy at first check: anchor in warmup (infonce falling, step 400), FA seed 0 banner correct (156.7M params, 60/68 trainable, decoders untouched). Logs ~/ladder/{anchor_w1.5_20k_9514,fa_w1.5_20k_9515}.log, ckpts ~/ladder/{w1.5_20k,fa_w1.5_20k}
