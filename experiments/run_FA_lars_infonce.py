@@ -45,11 +45,14 @@ VALIDATION GATES (both run locally on CPU with RUNS1_SMOKE=1; observed results):
 
 Everything below tracks E1L; see run_E1_lars_infonce.py for the full rationale of the LARS control.
 
-DECISION RULE (pre-registered):
-  - LARS fits train (gate >= E1_EARLY_T) and held-out matches the E1-Adam outcome -> the optimizer is NOT
-    what separates PC from BP; the PC gap must live in the rule and/or objective (see run_BPonF.py).
-  - LARS FAILS the train-fit gate at the E1-matched budget -> plain LARS itself impairs optimization on
-    this loss, and part of the PC negative may be optimizer-caused.
+DECISION RULE (pre-registered, FA locality-vs-recipe control):
+  - FA fits train (gate >= E1_EARLY_T) but transfers like PC (flat ~1.3x category lift) -> the failure
+    to build transferable cross-modal categories is a property of LOCAL credit assignment, not this PC
+    instantiation (rule-family claim).
+  - FA fits train AND transfers like BP (~2.5x) -> the failure is PC-specific; the identity-vs-value
+    mechanism carries the paper.
+  - FA fails the train-fit gate at the E1L-matched budget -> not a clean control; report as an FA
+    optimization result, retry per the campaign plan's gate policy before interpreting transfer.
 BAR (pre-registered, unchanged): held-out lat_retr > 3/N_eval. Report raw hits + sigma, never "Nx chance".
 
 ENV: RUNS1_NTRAIN(2000) RUNS1_NEVAL(1000) RUNS1_PAIRS(auto) RUNS1_RES(64) RUNS1_CAPLEN(64) RUNS1_WMUL(1.5)
