@@ -16,7 +16,7 @@ a.set_ylabel("train latent retrieval"); a.set_title("(a) matched training fit",f
 pb=[.2146,.2001,.1995]; pp=[.0998,.1080,.1023]; base=.0815
 b.bar([0],[np.mean(pb)],.6,color=BP,alpha=.85); b.bar([1],[np.mean(pp)],.6,color=PC,alpha=.85)
 b.plot([0]*3,pb,"o",c="k",ms=3,zorder=3); b.plot([1]*3,pp,"o",c="k",ms=3,zorder=3)
-b.axhline(base,ls="--",c="#555",lw=.9); b.text(-.45,base+.004,"base rate",fontsize=6.5,color="#555",ha="left")
+b.axhline(base,ls="--",c="#555",lw=.9); b.text(-.45,base-.012,"base rate",fontsize=6.5,color="#555",ha="left",va="top")
 b.text(0,max(pb)+.008,"~2.5x",ha="center",fontsize=7); b.text(1,np.mean(pp)+.012,"~1.3x",ha="center",fontsize=7)
 b.set_xticks([0,1],["backprop","pred. coding"]); b.set_ylabel("held-out category prec@10")
 b.set_title("(b) category transfer",fontsize=8); b.set_ylim(0,.26)
