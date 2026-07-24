@@ -10,7 +10,13 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-23 novelty-hardening campaign planned (ladder + FA control)
+- config or command, docs/superpowers/specs/2026-07-23-ladder-plus-fa-campaign.md + mock figure (no runs launched)
+- result, plan updates CAPACITY.md Phase-0 for the new headline: PC rungs use the stability recipe (jw1.0 lr5e-3 warmup6000 150ep), every rung saves ckpts + runs category_probe, matched-fit gate (train lat_retr >= 0.95, one lr retry at 2e-3 else recorded as instability edge). Rungs 330M-7.7B at 20k primary + 8k banked bar; seed-0 wave ~105-130 GPU-h, replication +60-90 h. Phase C forks run_E1_lars_infonce.py to feedback alignment (fixed random backward via custom_gradient), gated on digit-for-digit E1L reproduction with true transposes, 156M/20k x3 seeds <10 h
+- takeaway, addresses the "BP beats PC is old news" objection two ways, does the dissociation persist with capacity (registered thesis, unrun) and is it locality or this PC recipe (FA control); all three ladder branches publishable. Awaiting go before any submission
+
 ### 2026-07-23 ICLR results figure shipped (3-panel hero strip)
+
 - config or command, tools/make_results_figure.py (new, numbers inline tracing to catprobe_9431/catall_9438/E1L logs) per plan docs/superpowers/plans/2026-07-23-results-figure.md; commits 21d5ce3 + 406a86c + d44fabe
 - result, docs/paper/figs/fig2_results.{pdf,png} 6.75x2.2in: (a) matched-fit per-seed paired dots, (b) category-transfer bars w/ seed dots + base-rate line (~2.5x vs ~1.3x), (c) 13-category dumbbells log-x sorted by BP. PAPER_DRAFT_v2.md Figures section now points at it, instance hits (BP 18/12/11 vs PC 3/7/2) moved to a table; old fig2/fig3 de-referenced but kept on disk. Reviewed twice (spec + whole-branch), fonts embedded, ready to merge
 - takeaway, the paper's results figure is done; deferred to the LaTeX pass: ICLR column width vs the 6.75in strip, which instance-hits table survives (new one duplicates the Sec-2 headline columns, drops sigma), and Sec 5 now has no figure since fig3 retired
