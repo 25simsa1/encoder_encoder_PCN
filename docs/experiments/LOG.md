@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-24 campaign LAUNCHED: rung-0 anchor (9514) + FA 3-seed (9515) on Colby
+- config or command, sbatch ~/ladder/anchor.sbatch (cap driver arm B, WMUL 1.5, 20k, stability recipe, seed 0, L4 n7, 16h) + ~/ladder/fa.sbatch (FA_MODE=random, 156M/20k, E1_SEEDS=0,1,2, E1_SAVE=1, MIG n10, 12h); drivers + category/mechanism probes synced to cluster experiments//tools/
+- result, both RUNNING and healthy at first check: anchor in warmup (infonce falling, step 400), FA seed 0 banner correct (156.7M params, 60/68 trainable, decoders untouched). Logs ~/ladder/{anchor_w1.5_20k_9514,fa_w1.5_20k_9515}.log, ckpts ~/ladder/{w1.5_20k,fa_w1.5_20k}
+- takeaway, rung 0 gates the ladder (ACCEPT: arm_B train lat_retr >= 0.99, held-out ~3/2000 in the 9406 family); FA needs the per-seed fit gate then category_probe vs the cs_B 20k ckpts. Resume map in .superpowers/sdd/progress.md
+
 ### 2026-07-24 ladder v2 prep done (Phase A) + FA fork reviewed, campaign ready to launch
 - config or command, run_coupling_capacity.py verdict patch (print-only: adjudicate from arm B when arm A absent + matched-fit gate line), docs/runbooks/LADDER_V2.md (launch recipe: rung-0 anchor gate, BATCHJ pinned 64 all rungs, fit gate >=0.95 w/ one 2e-3 retry, wall-clocks, arm-B resume gap flagged for 7.7B/20k), arm-B CPU smoke (ARMS=B JOINTW=1.0)
 - result, smoke green end-to-end: warmup -> jointw=1.0 joint -> readouts -> cap_B_w0.1_seed0.npz saves and reloads with the 68-key cs_* layout category_probe/mechanism_probe consume; verdict prints from arm B with the fit-gate line. FA fork (below) passed an adversarial correctness review: forward exactness proven symbolically AND bit-equal in unit tests with B != W (dense rank-2/rank-3, conv), dW true / dx through B / dB none, 37/37 weight ops covered w/ zero missed P[] matmuls, transpose mode reads live weights (final ckpt bit-identical to E1L after full smoke training), both gates re-run independently. Review fixes: restored the LOG heading the FA commit clobbered, replaced the E1L decision-rule block in the fork docstring with the FA rule
