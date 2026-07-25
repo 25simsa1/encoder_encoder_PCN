@@ -151,7 +151,8 @@ if LOWHOST: assert ARMS in (["A"],["PCMAX"]), "low-host mode assumes a single-ar
 # recipe constants (identical to run_coupling_scale.py / run_coupling_capacity.py)
 HEADS, NBLK, NS = 4, 4, 4
 CODE, DEC_SD = 16, 1e-3
-A_CROSS, A_GEN = 1.0, 2.0
+A_CROSS = float(os.environ.get("PCMAX_ACROSS", "1.0"))   # gated cross-coupling weight; default 1.0 = byte-identical (parity safe)
+A_GEN = 2.0
 REL_C = 0.05
 N_INFER  = int(os.environ.get("RUNS1_NINFER", 2 if SMOKE else 8))
 GEN_INFER = 3 if SMOKE else 25
