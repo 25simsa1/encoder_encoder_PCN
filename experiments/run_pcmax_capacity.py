@@ -96,6 +96,15 @@ AUTOBATCH = os.environ.get("CAP_AUTOBATCH", "1") == "1"
 LOWHOST = os.environ.get("CAP_LOWHOST", "0") == "1"
 # PCMAX knobs (see header)
 PARITY   = os.environ.get("PCMAX_PARITY", "0") == "1"
+# PCMAX_WOPT=adamw: the published weight optimizer (muPC uses Adam, HEP uses AdamW wd=1e-4).
+# ADDED 2026-07-24 after the first GPU wave: every muP arm (Bmu included, no states/highways)
+# diverged under LARS at 5e-3 with F healthy and move% compounding -- RMSNorm makes the forward
+# invariant to pre-norm weight scale, so the trust ratio (step ~ ||w||) pushes along the loss-flat
+# radial direction and norm inflates exponentially (the project's known ~ep13 mode, isolated to
+# LARS x normalization). Decoupled weight decay is the standard cure. Default stays lars so the
+# parity gate and the family comparison are untouched.
+WOPT     = os.environ.get("PCMAX_WOPT", "lars")
+WD       = float(os.environ.get("PCMAX_WD", 1e-4))           # adamw decoupled weight decay; RUNS1_LR is the lr for BOTH optimizers (ramp semantics unchanged)
 ALPHA    = float(os.environ.get("PCMAX_ALPHA", 0.1))
 T_INFER  = int(os.environ.get("PCMAX_T_INFER", 16))
 SIGMA_V  = float(os.environ.get("PCMAX_SIGMA_V", 1e-3))
@@ -109,7 +118,9 @@ os.makedirs(CKPT, exist_ok=True); os.makedirs(DATA, exist_ok=True)
 assert RES % 16 == 0, "RES must be divisible by 16"
 assert all(a in ("A","B","A_long","Bmu","PCMAX") for a in ARMS), "RUNS1_ARMS must be a subset of A,B,A_long,Bmu,PCMAX"
 assert STATE_OPT in ("adam","gd")
+assert WOPT in ("lars","adamw")
 if PARITY: assert all(a in ("A","B","A_long") for a in ARMS), "parity mode exists to reproduce the baseline arms"
+if PARITY: assert WOPT=="lars", "parity mode is the frozen LARS recipe"
 if CKPT_EVERY: assert ARMS in (["A"],["PCMAX"]), "checkpoint/resume is supported for single-arm A or PCMAX runs"
 if LOWHOST: assert ARMS in (["A"],["PCMAX"]), "low-host mode assumes a single-arm run (reset is a no-op)"
 
@@ -277,6 +288,24 @@ def make_ops(P,c,MULT,VHW):
     DM,C1,C2,C3,C4,BN,DIMS,FFN,HEAD=c["DM"],c["C1"],c["C2"],c["C3"],c["C4"],c["BN"],c["DIMS"],c["FFN"],c["HEAD"]
     betas=[REL_C*d for d in DIMS]
     ALL_W=[v for k,v in P.items()]
+    if WOPT=="adamw":
+        # slots double weight memory: fine to 1.5B, needs sharding thought before the 7.7B rung
+        WSLOT_M=[tf.Variable(tf.zeros_like(v),trainable=False) for v in ALL_W]
+        WSLOT_V=[tf.Variable(tf.zeros_like(v),trainable=False) for v in ALL_W]
+        WSTEP_T=tf.Variable(0.0,trainable=False)
+    def apply_wgrads(gr,lr):
+        if WOPT=="lars":
+            for v,gg in zip(ALL_W,gr):
+                if gg is None: continue
+                tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
+        else:
+            WSTEP_T.assign_add(1.0); t=WSTEP_T
+            for v,gg,m,vv in zip(ALL_W,gr,WSLOT_M,WSLOT_V):
+                if gg is None: continue
+                if isinstance(gg,tf.IndexedSlices): gg=tf.convert_to_tensor(gg)   # emb gather grad
+                m.assign(0.9*m+0.1*gg); vv.assign(0.999*vv+0.001*gg*gg)
+                mh=m/(1.0-tf.pow(0.9,t)); vh=vv/(1.0-tf.pow(0.999,t))
+                v.assign_sub(lr*(mh/(tf.sqrt(vh)+1e-8)+WD*v))
     def mm(key,t):
         m=MULT.get(key,1.0); return t if m==1.0 else t*m
     def rmsn(x,gk):
@@ -348,9 +377,7 @@ def make_ops(P,c,MULT,VHW):
     def weight_step(x,tk,S,igt,tgt,lr):
         with tf.GradientTape() as t: t.watch(ALL_W); F=F_energy(S,enc_img_w(x),enc_txt_w(tk),igt,tgt,tf.reduce_mean)
         gr=t.gradient(F,ALL_W)
-        for v,gg in zip(ALL_W,gr):
-            if gg is None: continue
-            tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
+        apply_wgrads(gr,lr)
         return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
     def relax_mono(S,taps,decfn,tgt,n):
         Sv=[tf.identity(s) for s in S]
@@ -369,9 +396,7 @@ def make_ops(P,c,MULT,VHW):
     def warmup_step(xb,tkb,lr,temp):
         with tf.GradientTape() as t: t.watch(ALL_W); zi,zt=latents(xb,tkb); L=infonce(zi,zt,temp)
         gr=t.gradient(L,ALL_W)
-        for v,gg in zip(ALL_W,gr):
-            if gg is None: continue
-            tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
+        apply_wgrads(gr,lr)
         return L
     # ============================ PCMAX arm ops ============================
     s1,s2,s3,s4=RES//2,RES//4,RES//8,RES//16
@@ -465,9 +490,7 @@ def make_ops(P,c,MULT,VHW):
                 it,tt=taps_from_states(Zi,Zt)
                 L=F+jointw*infonce(l2n(tf.concat(it,1)),l2n(tf.concat(tt,1)),tf.constant(TEMP,tf.float32))
         gr=t.gradient(L,ALL_W)
-        for v,gg in zip(ALL_W,gr):
-            if gg is None: continue
-            tr=(tf.norm(v)+1e-3)/(tf.norm(gg)+1e-6); v.assign_sub(lr*tr*gg)
+        apply_wgrads(gr,lr)
         return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
     return dict(get_taps=get_taps,relax_full=relax_full,weight_step=weight_step,relax_mono=relax_mono,
                 dec_img=dec_img,dec_txt=dec_txt,latents=latents,warmup_step=warmup_step,
@@ -570,7 +593,7 @@ print(f"=== PCMAX CAPACITY === smoke={SMOKE} arms={ARMS} parity={int(PARITY)} | 
       f"({JOINT_STEPS} steps) lr={LR} | ckpt_every={CKPT_EVERY} resume={RESUME} | chance={1/max(NEV,1):.5f} bar >3/{NEV}",flush=True)
 if "PCMAX" in ARMS:
     print(f"[pcmax] alpha={ALPHA} T={T_INFER} state_opt={STATE_OPT} state_lr={STATE_LR} sigma_v={SIGMA_V} "
-          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f}",flush=True)
+          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f} wopt={WOPT} wd={WD}",flush=True)
 
 # ============================ READOUTS (byte-matched + uniformity) ============================
 def readouts(idx):
