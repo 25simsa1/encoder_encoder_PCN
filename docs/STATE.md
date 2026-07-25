@@ -14,7 +14,7 @@ trains, monotone in GD mode; probe compat 5.4e-7 / bit-identical baseline; highw
 be calibrated from the new ratio diagnostic). Probes patched (__pcmax branch). Launch recipe,
 budget (<=100 GPU-h seed-0: calibrate alpha ~1h, alpha x T probe ~30h, full run FITSTOP=0.99
 capped 40h, Bmu ~13h) and pre-registered branches in docs/runbooks/PCMAX.md. GO GIVEN 2026-07-24,
-Phase 1 LAUNCHED: job 9562 = alpha calibration (HEQ n16, running), job 9563 = Bmu full run (queued).
+Phase 1 in flight; wave 1 (LARS 5e-3) ALL DIVERGED incl. Bmu -- LARS x RMSNorm norm inflation, see LOG; wave 2 = LARS 2e-3 retries (9568-9570), wave 3 = AdamW per the papers (9571-9573). Highway alpha calibrated: alpha*=2.9e5 (ratio 0.3); align_cos 0.982 in 1 epoch at alpha* before the instability = highways demonstrably drive alignment.
 Next per runbook: read 9562's ratio line -> alpha x T probe grid -> full PCMAX seed-0 (FITSTOP=0.99).
 Old-recipe ladder (9545/9546) and FA retries (9549/9550) run in parallel as comparison points.
 
