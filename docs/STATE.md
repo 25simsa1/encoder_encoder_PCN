@@ -1,4 +1,4 @@
-# State (updated 2026-07-25)
+# State (updated 2026-07-25, PCMAX Phase 1 COMPLETE)
 
 ## ALERT (2026-07-25): the category-transfer headline is optimizer/parameterization-confounded
 Same arm-B hybrid recipe, same split, same BP reference (E1L 2.64x): baseline+LARS = 1.30x (the
