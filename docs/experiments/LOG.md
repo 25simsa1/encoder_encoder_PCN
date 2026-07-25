@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-24 FA sweep COMPLETE: fails to fit across 2e-3-1e-2, full budget (final point 9550)
+- config or command, FA 2e-3 seed0 (9550) full budget (200ep, 140min)
+- result, train lat_retr=0.030 (best of the sweep: 1e-2=0.004/0.003/0.001, 5e-3=0.003, 2e-3=0.030), still 30x below the 0.95 gate; held-out 0/2000. Weak monotone "lower lr slightly less bad" trend that does NOT approach fitting
+- takeaway, FA control DONE and airtight: feedback alignment cannot be trained to fit this InfoNCE coupling at the matched budget across the reasonable rate range. Locked framing (per direction decision): report as-is = the third backprop-free failure mode (fails to fit), NOT tuned. Consistent w/ Bartunov 2018. No more FA runs
+
 ### 2026-07-24 DIRECTION SET (user "whichever is best"): PCMAX is the PC arm; my clean decisions locked
 - config or command, reviewed the in-flight PCMAX campaign (lead-driven): cal 9562, alpha-probe 9564-67, Bmu 9563 all done; AdamW + LR-retry waves 9568-73 running. Read-only, launched nothing on PCMAX
 - result, PCMAX state: LARS diverges (norm inflation, 9564/9566 max|w|->nan) -> lead switched to AdamW (WOPT=adamw); AdamW run 9572 is STABLE (ratio calibrated 0.30, F 1.67->0.45 smooth, no NaN) but epoch 1, retrieval still chance = NOT yet fit. Cal: highway/local ratio ~1e-6 at alpha=1 so alpha~2.9e5 for ratio 0.3. NOTE (watch, not a finding): LARS probe 9566 showed align 0.95+ w/ retrieval at chance (alignment-without-binding) before diverging -- if that persists at a real AdamW fit it HARDENS the thesis in the defensible arm
