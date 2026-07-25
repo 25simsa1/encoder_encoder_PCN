@@ -105,6 +105,14 @@ PARITY   = os.environ.get("PCMAX_PARITY", "0") == "1"
 # parity gate and the family comparison are untouched.
 WOPT     = os.environ.get("PCMAX_WOPT", "lars")
 WD       = float(os.environ.get("PCMAX_WD", 1e-4))           # adamw decoupled weight decay; RUNS1_LR is the lr for BOTH optimizers (ramp semantics unchanged)
+# PCMAX_ANORM=1: the pre-registered RMS-normalized-alpha fallback (docs/runbooks/PCMAX.md watch-items).
+# ADDED 2026-07-25 after 9605: raw injection is proportional to the InfoNCE latent gradient, which
+# GROWS as the highway drives mean-collapse (discrimination worsens) -> positive feedback -> NaN at
+# a config (alpha=9.7e4, ratio 0.1) that survived 15ep under a different GPU-noise draw (9579), so
+# the raw-alpha stability window is a knife edge. With ANORM the eps segment is normalized to unit
+# RMS per example before the highway matrix, so alpha sets the injection scale directly, immune to
+# InfoNCE-scale drift. Never a silent change: off by default, banner-printed when on.
+ANORM    = os.environ.get("PCMAX_ANORM", "0") == "1"
 ALPHA    = float(os.environ.get("PCMAX_ALPHA", 0.1))
 T_INFER  = int(os.environ.get("PCMAX_T_INFER", 16))
 SIGMA_V  = float(os.environ.get("PCMAX_SIGMA_V", 1e-3))
@@ -450,6 +458,9 @@ def make_ops(P,c,MULT,VHW):
             gi,gt=tq.gradient(L,[zi_raw,zt_raw])
             ei=[-tf.stop_gradient(s) for s in tf.split(gi,DIMS,axis=1)]
             et=[-tf.stop_gradient(s) for s in tf.split(gt,DIMS,axis=1)]
+            if ANORM:
+                nrm=lambda e: e*tf.math.rsqrt(tf.reduce_mean(e*e,axis=1,keepdims=True)+1e-30)
+                ei=[nrm(e) for e in ei]; et=[nrm(e) for e in et]
             route=VHW["__img_route"]
             hwi=[STATE_LR*alpha*(ei[route[l]]@VHW[f"Vi{l}"])[:,None,None,:] for l in (1,2,3,4)]
             hwt=[STATE_LR*alpha*(et[b]@VHW[f"Vt{b}"])[:,None,:] for b in range(NBLK)]
@@ -593,7 +604,7 @@ print(f"=== PCMAX CAPACITY === smoke={SMOKE} arms={ARMS} parity={int(PARITY)} | 
       f"({JOINT_STEPS} steps) lr={LR} | ckpt_every={CKPT_EVERY} resume={RESUME} | chance={1/max(NEV,1):.5f} bar >3/{NEV}",flush=True)
 if "PCMAX" in ARMS:
     print(f"[pcmax] alpha={ALPHA} T={T_INFER} state_opt={STATE_OPT} state_lr={STATE_LR} sigma_v={SIGMA_V} "
-          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f} wopt={WOPT} wd={WD}",flush=True)
+          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f} wopt={WOPT} wd={WD} anorm={int(ANORM)}",flush=True)
 
 # ============================ READOUTS (byte-matched + uniformity) ============================
 def readouts(idx):
