@@ -113,6 +113,21 @@ WD       = float(os.environ.get("PCMAX_WD", 1e-4))           # adamw decoupled w
 # RMS per example before the highway matrix, so alpha sets the injection scale directly, immune to
 # InfoNCE-scale drift. Never a silent change: off by default, banner-printed when on.
 ANORM    = os.environ.get("PCMAX_ANORM", "0") == "1"
+# PC-NATIVE READOUTS (2026-07-25): does binding live in the SETTLED STATES rather than the
+# feedforward pass? PCMAX_READOUT_ONLY=1 loads cap_PCMAX_w{W}_seed{S}.npz from RUNS1_CKPT, rebuilds
+# the highways from seed+20011 (never saved), skips training, and runs two readout families:
+#   A (evidence-only): clamp one modality, drop the other trunk's states AND terms (incl. its A_GEN
+#     recon term -- it references missing data), relax clamped trunk + S, read settled S. Inherently
+#     alpha=0 (no missing-modality taps -> no InfoNCE error to broadcast).
+#   B (full bidirectional): keep the missing trunk FREE with all its terms except the missing
+#     bottom's bu term and the missing modality's A_GEN term; missing trunk init zeros (default) or
+#     noise (robustness arm) -- ancestral-from-S is NOT defined here (td edges are block-to-block;
+#     taps are bottom-up heads; no S->Z edge), the tap cross terms provide the pull. Highways at the
+#     trained alpha AND alpha=0; CAVEAT printed on alpha>0 rows: the batch-wise InfoNCE eps couples
+#     settled states within a batch, so alpha=0 is the clean retrieval row.
+# Latent = l2n(concat(settled S)); battery = family metrics on eval + train subsample.
+READOUT_ONLY = os.environ.get("PCMAX_READOUT_ONLY", "0") == "1"
+READOUT_TS   = [int(t) for t in os.environ.get("PCMAX_READOUT_T", "8,25").split(",")]
 ALPHA    = float(os.environ.get("PCMAX_ALPHA", 0.1))
 T_INFER  = int(os.environ.get("PCMAX_T_INFER", 16))
 SIGMA_V  = float(os.environ.get("PCMAX_SIGMA_V", 1e-3))
@@ -129,6 +144,7 @@ assert STATE_OPT in ("adam","gd")
 assert WOPT in ("lars","adamw")
 if PARITY: assert all(a in ("A","B","A_long") for a in ARMS), "parity mode exists to reproduce the baseline arms"
 if PARITY: assert WOPT=="lars", "parity mode is the frozen LARS recipe"
+if READOUT_ONLY: assert not PARITY and MUP, "readout mode probes muP PCMAX checkpoints"
 if CKPT_EVERY: assert ARMS in (["A"],["PCMAX"]), "checkpoint/resume is supported for single-arm A or PCMAX runs"
 if LOWHOST: assert ARMS in (["A"],["PCMAX"]), "low-host mode assumes a single-arm run (reset is a no-op)"
 
@@ -503,10 +519,93 @@ def make_ops(P,c,MULT,VHW):
         gr=t.gradient(L,ALL_W)
         apply_wgrads(gr,lr)
         return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
+    # ---- PC-native readouts (settled-state latents; see header) ----
+    def F_readout(Zi,Zt,S,x,tk,igt,tgt,use_img,use_txt,img_bottom,txt_bottom,red):
+        terms=[]
+        if use_img:
+            if img_bottom: terms.append(mse(Zi[0]-img_block(1,x))+BIDIR_W*mse(x-g_img(1,Zi[0],IMG_SHPS[0])))
+            terms.append(mse(Zi[1]-img_block(2,Zi[0]))+mse(Zi[2]-img_block(3,Zi[1]))+mse(Zi[3]-img_block(4,Zi[2])))
+            terms.append(BIDIR_W*(mse(Zi[0]-g_img(2,Zi[1],IMG_SHPS[1]))+mse(Zi[1]-g_img(3,Zi[2],IMG_SHPS[2]))
+                                  +mse(Zi[2]-g_img(4,Zi[3],IMG_SHPS[3]))))
+            it=img_taps(Zi[1],Zi[2],Zi[3]); terms.append(A_CROSS*tf.add_n([mse(S[k]-it[k]) for k in range(NS)]))
+        if use_txt:
+            if txt_bottom: terms.append(mse(Zt[0]-txt_block(0,txt_embed(tk))))
+            terms.append(mse(Zt[1]-txt_block(1,Zt[0]))+mse(Zt[2]-txt_block(2,Zt[1]))+mse(Zt[3]-txt_block(3,Zt[2])))
+            terms.append(BIDIR_W*tf.add_n([mse(Zt[b-1]-g_txt(b,Zt[b])) for b in range(1,NBLK)]))
+            tt=[txt_tap(b,Zt[b]) for b in range(NBLK)]; terms.append(A_CROSS*tf.add_n([mse(S[k]-tt[k]) for k in range(NS)]))
+        if img_bottom: terms.append(A_GEN*mse(dec_img(S)-igt))
+        if txt_bottom: terms.append(A_GEN*mse(dec_txt(S)-tgt))
+        return 0.5*red(tf.add_n(terms))
+    def relax_readout(x,tk,igt,tgt,clamp,mode,n,alpha,init="zeros",freeze_missing=False):
+        B=tf.shape(x)[0] if clamp=="img" else tf.shape(tk)[0]
+        gnoise=tf.random.Generator.from_seed(SEED+30017)
+        def mk(shp): return tf.zeros(shp) if init=="zeros" else 0.01*gnoise.normal(shp)
+        s1i,s2i,s3i,s4i=RES//2,RES//4,RES//8,RES//16
+        if clamp=="img":
+            Z1=img_block(1,x); Z2=img_block(2,Z1); Z3=img_block(3,Z2); Z4=img_block(4,Z3)
+            Zi=[Z1,Z2,Z3,Z4]; S=list(img_taps(Z2,Z3,Z4))
+            Zt=[mk(tf.stack([B,CAPLEN,c["DM"]])) for _ in range(NBLK)]
+            use_img,img_bottom=True,True
+            use_txt,txt_bottom=(mode=="B" and not freeze_missing),False
+        else:
+            h=txt_embed(tk); Zt=[]
+            for b in range(NBLK): h=txt_block(b,h); Zt.append(h)
+            S=[txt_tap(b,Zt[b]) for b in range(NBLK)]
+            Zi=[mk(tf.stack([B,s1i,s1i,c["C1"]])),mk(tf.stack([B,s2i,s2i,c["C2"]])),
+                mk(tf.stack([B,s3i,s3i,c["C3"]])),mk(tf.stack([B,s4i,s4i,c["C4"]]))]
+            use_txt,txt_bottom=True,True
+            use_img,img_bottom=(mode=="B" and not freeze_missing),False
+        free = (list(Zi)+list(Zt)+list(S)) if (mode=="B" and not freeze_missing) else \
+               ((list(Zi)+list(S)) if clamp=="img" else (list(Zt)+list(S)))
+        M=[tf.zeros_like(z) for z in free]; V=[tf.zeros_like(z) for z in free]
+        Ftr=[]
+        for i in range(n):
+            with tf.GradientTape() as tp:
+                tp.watch(free)
+                if mode=="B" and not freeze_missing:
+                    Zi2,Zt2,S2=free[:4],free[4:8],free[8:]
+                elif clamp=="img": Zi2,Zt2,S2=free[:4],Zt,free[4:]
+                else:              Zi2,Zt2,S2=Zi,free[:4],free[4:]
+                F=F_readout(Zi2,Zt2,S2,x,tk,igt,tgt,use_img,use_txt,img_bottom,txt_bottom,tf.reduce_sum)
+            gr=tp.gradient(F,free); Ftr.append(float(F))
+            new=[]
+            t=float(i+1)
+            for z,gg,m,v in zip(free,gr,M,V):
+                if gg is None: new.append(z); continue
+                if STATE_OPT=="adam":
+                    m=0.9*m+0.1*gg; v=0.999*v+0.001*gg*gg
+                    z=z-STATE_LR*(m/(1.0-0.9**t))/(tf.sqrt(v/(1.0-0.999**t))+1e-8)
+                else: z=z-STATE_LR*gg
+                new.append(z)
+            M=[0.9*m+(0.0*m if g is None else 0.1*g) for m,g in zip(M,gr)]
+            V=[0.999*v+(0.0*v if g is None else 0.001*g*g) for v,g in zip(V,gr)]
+            free=new
+            if mode=="B" and not freeze_missing and alpha>0.0:
+                Zi2,Zt2,S2=free[:4],free[4:8],free[8:]
+                it,tt=taps_from_states(Zi2,Zt2)
+                zi_raw=tf.concat(it,1); zt_raw=tf.concat(tt,1)
+                with tf.GradientTape() as tq:
+                    tq.watch([zi_raw,zt_raw]); L=infonce(l2n(zi_raw),l2n(zt_raw),tf.constant(TEMP,tf.float32))
+                gi,gt=tq.gradient(L,[zi_raw,zt_raw])
+                ei=[-tf.stop_gradient(s) for s in tf.split(gi,DIMS,axis=1)]
+                et=[-tf.stop_gradient(s) for s in tf.split(gt,DIMS,axis=1)]
+                if ANORM:
+                    nrm=lambda e: e*tf.math.rsqrt(tf.reduce_mean(e*e,axis=1,keepdims=True)+1e-30)
+                    ei=[nrm(e) for e in ei]; et=[nrm(e) for e in et]
+                route=VHW["__img_route"]
+                Zi2=[Zi2[l-1]+STATE_LR*alpha*(ei[route[l]]@VHW[f"Vi{l}"])[:,None,None,:] for l in (1,2,3,4)]
+                Zt2=[Zt2[b]+STATE_LR*alpha*(et[b]@VHW[f"Vt{b}"])[:,None,:] for b in range(NBLK)]
+                free=list(Zi2)+list(Zt2)+list(S2)
+            if mode=="B" and not freeze_missing: S=free[8:]
+            elif clamp=="img": S=free[4:]
+            else: S=free[4:]
+        return [tf.identity(s) for s in S], Ftr
     return dict(get_taps=get_taps,relax_full=relax_full,weight_step=weight_step,relax_mono=relax_mono,
                 dec_img=dec_img,dec_txt=dec_txt,latents=latents,warmup_step=warmup_step,
                 ff_states=ff_states,relax_hep=relax_hep,weight_step_local=weight_step_local,
-                enc_img=enc_img,enc_txt=enc_txt)
+                enc_img=enc_img,enc_txt=enc_txt,relax_readout=relax_readout,
+                F_gate=lambda Zi,Zt,S,x,tk,igt,tgt: F_readout(Zi,Zt,S,x,tk,igt,tgt,True,True,True,True,tf.reduce_sum),
+                F_full_gate=lambda Zi,Zt,S,x,tk,igt,tgt: F_pcmax(Zi,Zt,S,x,tk,igt,tgt,tf.reduce_sum))
 
 def movement(P,P0):
     num=float(tf.sqrt(sum(tf.reduce_sum((P[k]-P0[k])**2) for k in P)))
@@ -522,7 +621,7 @@ def unif_np(Z, t=2.0, cap=2000, rng=None):
 
 # ============================ BUILD ONCE, snapshot init ============================
 P,c,MULT=build(WMUL,SEED)
-VHW=build_highways(SEED,c) if ("PCMAX" in ARMS and ALPHA>0) else {"__img_route":{1:3,2:0,3:1,4:2}}
+VHW=build_highways(SEED,c) if (("PCMAX" in ARMS or READOUT_ONLY) and ALPHA>0) else {"__img_route":{1:3,2:0,3:1,4:2}}
 ops=make_ops(P,c,MULT,VHW)
 NP=int(sum(int(np.prod(v.shape)) for v in P.values()))
 INIT_DIR=os.path.join(CKPT, f"init_w{WMUL}_seed{SEED}")
@@ -822,6 +921,69 @@ def run_arm(name, do_warmup, joint_steps, jointw):
     return dict(name=name,diverged=False,move=move,elapsed=elapsed,train=m_tr,heldout=m_ev,postwarm=postwarm,
                 peak_gpu_gb=peak,lat_hits=m_ev["lat_hits"],sigma=sigma_above_chance(m_ev["lat_hits"],NEV),
                 fit_stop_step=fit_stop_step)
+
+# ============================ PC-NATIVE READOUT MODE ============================
+def run_readouts():
+    path=os.path.join(CKPT,f"cap_PCMAX_w{WMUL}_seed{SEED}.npz")
+    z=np.load(path)
+    for k in P: P[k].assign(z[k])
+    print(f"[readout] loaded {path} ({len(z.files)} keys); highways rebuilt from seed+20011 "
+          f"(alpha={ALPHA} anorm={int(ANORM)} must match the TRAINED values)",flush=True)
+    # plumbing gate: the all-flags readout energy must equal the training energy on the same states
+    gi=[int(i) for i in tr_idx[:min(4,NTR)]]
+    x=tf.constant(imgs[gi]); tk=tf.constant(toks[gi])
+    igt=tf.constant(imgs[gi].reshape(len(gi),-1)); tgt=tf.constant(toks_oh[gi].reshape(len(gi),-1))
+    Zi,Zt,S=ops["ff_states"](x,tk)
+    F_ro=float(ops["F_gate"](Zi,Zt,S,x,tk,igt,tgt))
+    F_tr=float(ops["F_full_gate"](Zi,Zt,S,x,tk,igt,tgt))
+    d=abs(F_ro-F_tr)
+    print(f"[readout] ENERGY PLUMBING GATE: |F_readout(all) - F_pcmax| = {d:.3e} -> {'PASS' if d<1e-4*max(1.0,abs(F_tr)) else 'FAIL'}",flush=True)
+    for mode in ("A","B"):
+        _,Ftr_=ops["relax_readout"](x,tk,igt,tgt,"img",mode,max(READOUT_TS),ALPHA if mode=="B" else 0.0)
+        mono="non-increasing" if all(b<=a*1.001 for a,b in zip(Ftr_,Ftr_[1:])) else "NOT monotone (trend gate under adam)"
+        print(f"[readout] settled-F trace mode={mode}: "+" ".join(f"{f:.4e}" for f in Ftr_[:8])+f" ... {mono}",flush=True)
+    def battery(mode,T,alpha,init):
+        def latents_for(idx):
+            ZIl=[]; ZTl=[]
+            for st in range(0,len(idx),READB):
+                bi=[int(j) for j in idx[st:st+READB]]
+                xb=tf.constant(imgs[bi]); tkb=tf.constant(toks[bi])
+                igtb=tf.constant(imgs[bi].reshape(len(bi),-1)); tgtb=tf.constant(toks_oh[bi].reshape(len(bi),-1))
+                Si,_=ops["relax_readout"](xb,tkb,igtb,tgtb,"img",mode,T,alpha,init)
+                St,_=ops["relax_readout"](xb,tkb,igtb,tgtb,"txt",mode,T,alpha,init)
+                l2=lambda a: a/(np.linalg.norm(a,axis=1,keepdims=True)+1e-9)
+                ZIl.append(l2(np.concatenate([s.numpy() for s in Si],1)))
+                ZTl.append(l2(np.concatenate([s.numpy() for s in St],1)))
+            return np.concatenate(ZIl,0), np.concatenate(ZTl,0)
+        out={}
+        for tag,idx in (("EVAL",ev_idx),("TRAIN",tr_idx if NTR<=READTRAIN else tr_idx[np.random.RandomState(SEED+3).choice(NTR,READTRAIN,replace=False)])):
+            ZI,ZT=latents_for(idx); M=len(idx)
+            hits=int(np.sum(np.argmax(ZT@ZI.T,1)==np.arange(M)))
+            ac=float(np.mean(np.sum(ZI*ZT,1)))
+            out[tag]=dict(M=M,lat_hits=hits,lat_retr=hits/M,align_cos=ac,unif_img=unif_np(ZI),unif_txt=unif_np(ZT))
+            cav=" [CAVEAT: alpha>0 couples settled states within a batch via InfoNCE]" if (alpha>0 and mode=="B") else ""
+            print(f"  [readout mode={mode} T={T} alpha={alpha:g} init={init}] {tag}: lat {hits}/{M} "
+                  f"({sigma_above_chance(hits,M):+.1f} sigma) align={ac:.3f} "
+                  f"unif={out[tag]['unif_img']:.2f}/{out[tag]['unif_txt']:.2f}{cav}",flush=True)
+        return out
+    res={}
+    for T in READOUT_TS:
+        res[f"A_T{T}"]=battery("A",T,0.0,"zeros")
+        res[f"B_T{T}_atrained_zeros"]=battery("B",T,ALPHA,"zeros")
+        if ALPHA>0: res[f"B_T{T}_a0_zeros"]=battery("B",T,0.0,"zeros")
+    res[f"B_T{READOUT_TS[0]}_atrained_noise"]=battery("B",READOUT_TS[0],ALPHA,"noise")
+    out=os.path.join(HERE,f"pcmax_readout_w{WMUL}_seed{SEED}.json")
+    with open(out+".tmp","w") as fh: json.dump(dict(config=dict(wmul=WMUL,seed=SEED,alpha=ALPHA,anorm=ANORM,
+        state_opt=STATE_OPT,state_lr=STATE_LR,Ts=READOUT_TS,ckpt=path),**res),fh,indent=2)
+    os.replace(out+".tmp",out)
+    print(f"\n[readout] saved: {out}",flush=True)
+    ev_rows=[(k,v["EVAL"]["lat_hits"]) for k,v in res.items()]
+    best=max(ev_rows,key=lambda r:r[1])
+    print(f"[readout] VERDICT: best settled-state eval retrieval = {best[1]}/{NEV} ({best[0]}); "
+          f"bar >3/{NEV}. {'ABOVE BAR -- binding in settled states, escalate' if best[1]>3 else 'chance-range everywhere: the feedforward null is readout-robust'}",flush=True)
+
+if READOUT_ONLY:
+    run_readouts(); sys.exit(0)
 
 # ============================ RUN ARMS ============================
 results={}
