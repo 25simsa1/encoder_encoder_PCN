@@ -128,6 +128,20 @@ ANORM    = os.environ.get("PCMAX_ANORM", "0") == "1"
 # Latent = l2n(concat(settled S)); battery = family metrics on eval + train subsample.
 READOUT_ONLY = os.environ.get("PCMAX_READOUT_ONLY", "0") == "1"
 READOUT_TS   = [int(t) for t in os.environ.get("PCMAX_READOUT_T", "8,25").split(",")]
+# TIER-1 BINDING MECHANISMS (2026-07-25, post-campaign):
+# PCMAX_BLOCKNCE=w -- per-block local InfoNCE (Greedy-InfoMax-style): each scale k gets its own
+#   contrastive term computed THROUGH one block per modality from stop-gradient inputs (image tap k
+#   through img_block from sg(prev state); text tap b through txt_block(b, sg(prev))), so every
+#   block's weights receive a genuine pair-discriminative gradient that is still depth-local.
+#   Image block 1 is untapped and keeps only its prediction terms (documented).
+# PCMAX_HWMODE=transpose -- symmetric feedback, the transpose limit of Kolen-Pollack: the highway
+#   injection becomes the EXACT one-hop gradient of the latent InfoNCE through each block's own tap
+#   head into that block's state (position-specific, no random V, no new params; upper-bounds all
+#   learned-KP feedback). Z1 (untapped) gets no injection. ANORM applies per-example over the
+#   state-shaped eps. Default "random" = the HEP behavior, byte-identical.
+BLOCKNCE = float(os.environ.get("PCMAX_BLOCKNCE", "0"))
+HWMODE   = os.environ.get("PCMAX_HWMODE", "random")
+assert HWMODE in ("random","transpose")
 ALPHA    = float(os.environ.get("PCMAX_ALPHA", 0.1))
 T_INFER  = int(os.environ.get("PCMAX_T_INFER", 16))
 SIGMA_V  = float(os.environ.get("PCMAX_SIGMA_V", 1e-3))
@@ -467,7 +481,23 @@ def make_ops(P,c,MULT,VHW):
                 z=z-STATE_LR*gg
             new_s.append(z); new_m.append(m); new_v.append(v)
         Zi2,Zt2,S2=new_s[:4],new_s[4:8],new_s[8:]
-        if alpha>0.0:
+        if alpha>0.0 and HWMODE=="transpose":
+            watch=[Zi2[1],Zi2[2],Zi2[3]]+list(Zt2)
+            with tf.GradientTape() as tq:
+                tq.watch(watch)
+                it=img_taps(Zi2[1],Zi2[2],Zi2[3]); tt=[txt_tap(b,Zt2[b]) for b in range(NBLK)]
+                L=infonce(l2n(tf.concat(it,1)),l2n(tf.concat(tt,1)),tf.constant(TEMP,tf.float32))
+            g2=tq.gradient(L,watch)
+            eps=[tf.zeros_like(w) if g is None else -tf.stop_gradient(g) for g,w in zip(g2,watch)]
+            if ANORM:
+                eps=[e*tf.math.rsqrt(tf.reduce_mean(e*e,axis=list(range(1,len(e.shape))),keepdims=True)+1e-30) for e in eps]
+            hwi=[tf.zeros_like(Zi2[0])]+[STATE_LR*alpha*eps[k] for k in range(3)]
+            hwt=[STATE_LR*alpha*eps[3+b] for b in range(NBLK)]
+            loc=[o-n_ for o,n_ in zip(states[:8],new_s[:8])]
+            ratios=tf.stack([tf.norm(h)/(tf.norm(l_)+1e-30) for h,l_ in zip(hwi+hwt,loc)])
+            Zi2=[Zi2[0]]+[Zi2[k]+hwi[k] for k in (1,2,3)]
+            Zt2=[Zt2[b]+hwt[b] for b in range(NBLK)]
+        elif alpha>0.0:
             it,tt=taps_from_states(Zi2,Zt2)
             zi_raw=tf.concat(it,1); zt_raw=tf.concat(tt,1)
             with tf.GradientTape() as tq:
@@ -517,6 +547,13 @@ def make_ops(P,c,MULT,VHW):
             if JOINTW>0:
                 it,tt=taps_from_states(Zi,Zt)
                 L=F+jointw*infonce(l2n(tf.concat(it,1)),l2n(tf.concat(tt,1)),tf.constant(TEMP,tf.float32))
+            if BLOCKNCE>0:
+                # per-block local InfoNCE: each term is one block deep per modality (inputs are the
+                # relaxed states, constants in this tape) -- depth-local pair-discriminative credit
+                it_b=img_taps(img_block(2,Zi[0]),img_block(3,Zi[1]),img_block(4,Zi[2]))
+                prevs=[txt_embed(tk),Zt[0],Zt[1],Zt[2]]
+                tt_b=[txt_tap(b,txt_block(b,prevs[b])) for b in range(NBLK)]
+                L=L+BLOCKNCE*tf.add_n([infonce(l2n(it_b[k]),l2n(tt_b[k]),tf.constant(TEMP,tf.float32)) for k in range(NS)])
         gr=t.gradient(L,ALL_W)
         apply_wgrads(gr,lr)
         return F, tf.reduce_max(tf.stack([tf.reduce_max(tf.abs(w)) for w in ALL_W]))
@@ -704,7 +741,8 @@ print(f"=== PCMAX CAPACITY === smoke={SMOKE} arms={ARMS} parity={int(PARITY)} | 
       f"({JOINT_STEPS} steps) lr={LR} | ckpt_every={CKPT_EVERY} resume={RESUME} | chance={1/max(NEV,1):.5f} bar >3/{NEV}",flush=True)
 if "PCMAX" in ARMS:
     print(f"[pcmax] alpha={ALPHA} T={T_INFER} state_opt={STATE_OPT} state_lr={STATE_LR} sigma_v={SIGMA_V} "
-          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f} wopt={WOPT} wd={WD} anorm={int(ANORM)}",flush=True)
+          f"bidir_w={BIDIR_W} jointw={JOINTW} fitstop={FITSTOP} rscale={RSCALE:.4f} wopt={WOPT} wd={WD} anorm={int(ANORM)} "
+          f"blocknce={BLOCKNCE} hwmode={HWMODE}",flush=True)
 
 # ============================ READOUTS (byte-matched + uniformity) ============================
 def readouts(idx):
