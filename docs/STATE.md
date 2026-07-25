@@ -1,4 +1,16 @@
-# State (updated 2026-07-24)
+# State (updated 2026-07-25)
+
+## ALERT (2026-07-25): the category-transfer headline is optimizer/parameterization-confounded
+Same arm-B hybrid recipe, same split, same BP reference (E1L 2.64x): baseline+LARS = 1.30x (the
+paper's PC cell, reproduced via catprobe 9544 on the anchor ckpt) vs muP+AdamW = 2.27x (catprobe
+9612 on the Bmu 9577 ckpt; instance held-out 15/2000 +14sigma vs anchor 5/2000, matched fit ~0.997
+both). The "PC" column was a BP-hybrid whose backprop components (warmup + jointw co-train) the old
+setup crippled. Pending Bmu-AdamW seeds 1/2 (jobs 9613/9614), the paper likely reframes around the
+ROBUST dissociation established this week: genuinely-local rules fail (FA cannot fit at any LR;
+fully-local PCMAX under muPC+HEP aligns-to-collapse but never binds at any delivered strength, with
+every failure mechanistically pinned) vs any-backprop-path arms (E1L, Bmu) which fit AND transfer.
+Full PCMAX-arm campaign record in LOG 2026-07-24/25; runbook docs/runbooks/PCMAX.md.
+
 
 ## PCMAX arm (NEW 2026-07-24): best-shot bidirectional PC under the published scaling methods
 The lead directed scaling bidirectional PC per muPC (Depth-muP parameterization, NeurIPS 2025) and
