@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-25 PCMAX status: Bmu (arm-B+muP) fits, REAL PCMAX arm does NOT (chance thru ep110 or diverges)
+- config or command, read-only review of the lead's PCMAX wave (I corrected a false "PCMAX fit" monitor alert -- the glob had caught a Bmu log); also PC 330M old-recipe (9545) done
+- result, DISTINCTION: the runs that fit (0.9967/0.9833) are arms=['Bmu'] = arm-B recipe under muP (still backprops energy through the encoder), EXPECTED to fit; Bmu 9577 held-out 15/2000 but driver VOID on the 40% move floor (muP shrinks movement -> floor mis-calibrated for muP, lead's to sort). Every REAL PCMAX arm run is at CHANCE: 9607 flat 0.0007 through epoch 110, 9605 diverged (F->nan) at chance. PC 330M old-recipe (9545): fits 0.9973, held-out FLAT 2/2000 (branch a), consistent comparison point
+- takeaway, real bidirectional block-local PC (PCMAX) does NOT fit the coupling across the lead's alpha/T/optimizer/norm variants so far -- SAME CATEGORY AS FA (both genuinely-local rules fail to FIT; only backprop-through-encoder arms BP/arm-B/Bmu fit). EMERGING PATTERN, not yet final (lead still iterating alpha-normalized "an" variants). Fixed my monitor to exclude Bmu (be3r1kjoa) so it only alerts on a REAL PCMAX-arm fit. NOT running any judgment (no real-PCMAX ckpt fit). Coordination unchanged: lead drives PCMAX
+
 ### 2026-07-24 FA sweep COMPLETE: fails to fit across 2e-3-1e-2, full budget (final point 9550)
 - config or command, FA 2e-3 seed0 (9550) full budget (200ep, 140min)
 - result, train lat_retr=0.030 (best of the sweep: 1e-2=0.004/0.003/0.001, 5e-3=0.003, 2e-3=0.030), still 30x below the 0.95 gate; held-out 0/2000. Weak monotone "lower lr slightly less bad" trend that does NOT approach fitting
