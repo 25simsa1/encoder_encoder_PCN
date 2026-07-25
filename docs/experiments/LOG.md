@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-25 A_CROSS=10 full run confirms STABLE collapse (not a transient); do NOT category_probe it
+- config or command, 9623 completed all 15 epochs
+- result, align holds 0.999 through epoch 15, train retrieval stays chance (0.0027), unif -0.00/-0.00 (collapsed to one point), held-out 1/2000. Settles into the degenerate attractor and stays (did not fully diverge, did not recover to binding)
+- takeaway, confirms the cross channel collapses as a STABLE solution. CAVEAT for the lead: the driver auto-verdict printed "dissociation survives ... category_probe adjudicates" but that is MISLEADING for this run -- it COLLAPSED (align 1.0/retrieval chance), it did NOT reach matched fit, so category_probe on across_a10 would show chance transfer and must NOT be read as a PCMAX matched-fit dissociation. The A_CROSS probes are collapse demonstrations, not fit datapoints
+
 ### 2026-07-25 A_CROSS positive control: PC-native cross channel COLLAPSES (align 1.0, retrieval 0), not binding
 - config or command, my probes: PCMAX arm, highway OFF (alpha=0), PCMAX_ACROSS=10 (9623) / 100 (9624), AdamW, 15ep, 156M/20k
 - result, A_CROSS=10: align climbs 0.001->0.22->1.000 by epoch 4 while train lat_retr STAYS AT ~0 (0.004/0.0007/0.0007/0.0000/0.0007); F then grows (288->870, relaxF 2.6e4->7.4e4 = heading to divergence). = textbook representational COLLAPSE (all embeddings -> one direction: perfect global align, zero per-pair discriminability). Literally "alignment without binding" in the PCMAX arm. A_CROSS=100 (9624) pending confirmation
