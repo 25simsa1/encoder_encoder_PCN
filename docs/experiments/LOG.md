@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-25 A_CROSS=100 confirms: collapse is robust to cross-weight (both 10 and 100 collapse)
+- config or command, 9624 completed 15 epochs
+- result, align 1.000, train retrieval 0.0007 (chance), unif -0.00/0.00, held-out 0/2000 -- identical collapse to A_CROSS=10. Regression cross channel collapses regardless of strength
+- takeaway, A_CROSS positive control COMPLETE and clean: strengthening the PC-native (regression, no-negatives) coupling channel produces stable collapse at both 10 and 100, never binding. Synthesis + next step (teacher-forced control) in docs/superpowers/specs/2026-07-25-pcmax-binding-diagnosis.md. Same do-not-category_probe caveat applies (collapsed, not matched fit)
+
 ### 2026-07-25 A_CROSS=10 full run confirms STABLE collapse (not a transient); do NOT category_probe it
 - config or command, 9623 completed all 15 epochs
 - result, align holds 0.999 through epoch 15, train retrieval stays chance (0.0027), unif -0.00/-0.00 (collapsed to one point), held-out 1/2000. Settles into the degenerate attractor and stays (did not fully diverge, did not recover to binding)
