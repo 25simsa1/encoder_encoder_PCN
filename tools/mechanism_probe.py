@@ -25,26 +25,45 @@ def encode_caps(caps, c2i, caplen):
 def load_P(path):
     z = np.load(path); return {k: tf.constant(z[k]) for k in z.files}
 
+# __pcmax checkpoints (run_pcmax_capacity.py, Bmu/PCMAX arms) use the muP forward: N(0,1) weights
+# with premultipliers reconstructed from shapes (hidden 1/sqrt(fan_in)), RMSNorm gains at block
+# inputs, and 1/sqrt(2*NBLK)-scaled residual branches. Baseline checkpoints take the original path
+# byte-for-byte (helpers below are identity when the marker is absent). td_*/tdb_* keys are the
+# PCMAX top-down prediction weights -- never part of the encoder forward, ignored here.
+def _is_mup(P): return "__pcmax" in P
+def _mm(P,k,t):
+    if not _is_mup(P): return t
+    return t*(1.0/float(np.sqrt(np.prod(P[k].shape[:-1]))))
+def _rn(P,t,gk):
+    if not _is_mup(P): return t
+    return P[gk]*t*tf.math.rsqrt(tf.reduce_mean(t*t,axis=-1,keepdims=True)+1e-8)
+
 def enc_img(P, x):
-    h=gelu(tf.nn.conv2d(x,P["c1"],1,"SAME")+P["cb1"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
-    h=gelu(tf.nn.conv2d(h,P["c2"],1,"SAME")+P["cb2"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
+    h=gelu(_mm(P,"c1",tf.nn.conv2d(x,P["c1"],1,"SAME"))+P["cb1"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
+    h=gelu(_mm(P,"c2",tf.nn.conv2d(_rn(P,h,"gc2"),P["c2"],1,"SAME"))+P["cb2"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
     f0=tf.reshape(h,[tf.shape(x)[0],-1])
-    h=gelu(tf.nn.conv2d(h,P["c3"],1,"SAME")+P["cb3"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
+    h=gelu(_mm(P,"c3",tf.nn.conv2d(_rn(P,h,"gc3"),P["c3"],1,"SAME"))+P["cb3"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
     f1=tf.reshape(h,[tf.shape(x)[0],-1])
-    h=gelu(tf.nn.conv2d(h,P["c4"],1,"SAME")+P["cb4"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
-    f2=tf.reshape(h,[tf.shape(x)[0],-1]); f3=gelu(f2@P["wbn"]+P["bbn"])
-    return [gelu(f0@P["Wi0"]+P["bi0"]),gelu(f1@P["Wi1"]+P["bi1"]),gelu(f2@P["Wi2"]+P["bi2"]),gelu(f3@P["Wi3"]+P["bi3"])]
+    h=gelu(_mm(P,"c4",tf.nn.conv2d(_rn(P,h,"gc4"),P["c4"],1,"SAME"))+P["cb4"]); h=tf.nn.max_pool2d(h,2,2,"SAME")
+    f2=tf.reshape(h,[tf.shape(x)[0],-1]); f3=gelu(_mm(P,"wbn",f2@P["wbn"])+P["bbn"])
+    return [gelu(_mm(P,"Wi0",f0@P["Wi0"])+P["bi0"]),gelu(_mm(P,"Wi1",f1@P["Wi1"])+P["bi1"]),
+            gelu(_mm(P,"Wi2",f2@P["Wi2"])+P["bi2"]),gelu(_mm(P,"Wi3",f3@P["Wi3"])+P["bi3"])]
 
 def enc_txt(P, tk):
     DM=int(P["emb"].shape[1]); HEAD=DM//HEADS; B=tf.shape(tk)[0]
-    x=tf.gather(P["emb"],tk)+P["pos"][None]; tt=[]
+    T=int(P["pos"].shape[0])                       # sequence length from the ckpt (=CAPLEN for the banked runs)
+    rscale=1.0/np.sqrt(2.0*NBLK) if _is_mup(P) else 1.0
+    x=_mm(P,"emb",tf.gather(P["emb"],tk))+_mm(P,"pos",P["pos"])[None]; tt=[]
     for b in range(NBLK):
-        q,k_,v=x@P[f"Wq{b}"],x@P[f"Wk{b}"],x@P[f"Wv{b}"]
-        sp=lambda t: tf.transpose(tf.reshape(t,[B,CAPLEN,HEADS,HEAD]),[0,2,1,3])
+        xin=_rn(P,x,f"ga{b}")
+        q,k_,v=_mm(P,f"Wq{b}",xin@P[f"Wq{b}"]),_mm(P,f"Wk{b}",xin@P[f"Wk{b}"]),_mm(P,f"Wv{b}",xin@P[f"Wv{b}"])
+        sp=lambda t: tf.transpose(tf.reshape(t,[B,T,HEADS,HEAD]),[0,2,1,3])
         a=tf.nn.softmax(tf.matmul(sp(q),sp(k_),transpose_b=True)/np.sqrt(HEAD),axis=-1)
-        ctx=tf.reshape(tf.transpose(tf.matmul(a,sp(v)),[0,2,1,3]),[B,CAPLEN,DM])
-        x=x+ctx@P[f"Wo{b}"]; x=x+(gelu(x@P[f"f1_{b}"]+P[f"fb1_{b}"])@P[f"f2_{b}"]+P[f"fb2_{b}"])
-        tt.append(gelu(tf.reduce_mean(x,1)@P[f"Wt{b}"]+P[f"bt{b}"]))
+        ctx=tf.reshape(tf.transpose(tf.matmul(a,sp(v)),[0,2,1,3]),[B,T,DM])
+        x=x+rscale*_mm(P,f"Wo{b}",ctx@P[f"Wo{b}"])
+        h=_rn(P,x,f"gf{b}")
+        x=x+rscale*(_mm(P,f"f2_{b}",gelu(_mm(P,f"f1_{b}",h@P[f"f1_{b}"])+P[f"fb1_{b}"])@P[f"f2_{b}"])+P[f"fb2_{b}"])
+        tt.append(gelu(_mm(P,f"Wt{b}",tf.reduce_mean(x,1)@P[f"Wt{b}"])+P[f"bt{b}"]))
     return tt
 
 def taps(P, imgs, toks, idx, bs=200):

@@ -1,4 +1,21 @@
-# State (updated 2026-07-23)
+# State (updated 2026-07-24)
+
+## PCMAX arm (NEW 2026-07-24): best-shot bidirectional PC under the published scaling methods
+The lead directed scaling bidirectional PC per muPC (Depth-muP parameterization, NeurIPS 2025) and
+HEP (error highways, 2026). Finding en route: the ladder's "PC" arm B has free states only at the 4
+taps and backprops the energy through the whole encoder (plus jointw InfoNCE backprop) -- so the
+published methods had nothing to act on. SHIPPED: experiments/run_pcmax_capacity.py -- arm PCMAX is
+a real bidirectional PCN (states at all 8 block outputs + 4 taps, reciprocal untied td edges, muP
+premultipliers + RMSNorm + residual scaling, HEP highways delivering the InfoNCE error to every
+block each inference step, Adam-on-states, fully block-local weight updates, no warmup, zero
+cross-layer backprop) and arm Bmu is the arm-B recipe under muP only (ladder hardening + LR
+transfer). ALL CPU GATES PASS 2026-07-24 (parity digit-identical to the baseline driver; smoke
+trains, monotone in GD mode; probe compat 5.4e-7 / bit-identical baseline; highways live, alpha to
+be calibrated from the new ratio diagnostic). Probes patched (__pcmax branch). Launch recipe,
+budget (<=100 GPU-h seed-0: calibrate alpha ~1h, alpha x T probe ~30h, full run FITSTOP=0.99
+capped 40h, Bmu ~13h) and pre-registered branches in docs/runbooks/PCMAX.md. AWAITING explicit go
+for Colby submission. Jobs 9514/9515 keep running as the old-recipe comparison points.
+
 
 ## Paper status (2026-07-23)
 The writing pass is underway on docs/paper/PAPER_DRAFT_v2.md (headline 3-seed category-transfer table complete, see LOG 2026-07-23). The hero results figure is DONE: figs/fig2_results.{pdf,png} (matched fit / category transfer / per-category dumbbells) replaces fig2/fig3 in the draft, instance hits are a table. Remaining for submission: related work DRAFTED 2026-07-24 (Sec 6 of PAPER_DRAFT_v2.md, 5 themes + ~20 refs positioning vs the PC-approximates-BP equivalence line, Bartunov scalability gap, Wang&Isola alignment/uniformity, CLIP transferability, memorization/metric critique; the FA arm is cited as the locality control) -- CITATIONS STILL NEED A VENUE/YEAR VERIFICATION PASS before submission; LaTeX/ICLR conversion (confirm column width vs the 6.75in strip; consolidate the duplicated instance-hits table; decide if Sec 5 needs a figure since fig3 retired), optional 8k-ckpt scale-trend probe.
