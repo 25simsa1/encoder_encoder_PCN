@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-24 FA 5e-3 full-budget confirmation + holding old-recipe A100 rungs pending PCMAX direction
+- config or command, FA 5e-3 seed0 (9549) ran the FULL budget (200ep, 140min), not early-stopped
+- result, still FAILS: train lat_retr 0.003, held-out 3/2000 (2 sigma). Confirms FA-fails-to-fit is not a stopping-budget artifact; even full budget at the borderline rate produces no discriminability. FA 2e-3 (9550) still running for the last sweep point
+- takeaway, FA sweep conclusive (fails 1e-2/5e-3/2e-3, full budget where run). Separately: STATE now carries the lead's PCMAX arm (real bidirectional PCN, run_pcmax_capacity.py, awaiting go) and the note that ladder arm B has free states only at the 4 taps + backprops the energy through the encoder = not pure-local PC, only a comparison point. THEREFORE holding: finish the cheap 330M/700M old-recipe PC rungs (9545/9546, lead wants them as comparison points) but do NOT auto-launch the A100 3B/7.7B old-recipe rungs or PCMAX -- both are user/lead scope calls (old-recipe ladder value vs PCMAX budget). Decision surfaced to user
+
 ### 2026-07-24 FA VERDICT: does NOT fit the coupling at ANY rate 2e-3-1e-2 (locality-side fit failure)
 - config or command, FA_MODE=random 156M/20k: 1e-2 x3 seeds (9515, done), lr retries seed0 5e-3/2e-3/1e-3 (9549/9550/9551)
 - result, 1e-2: FAILS all 3 seeds (train lat_retr 0.004/0.003/0.001, dead model, held-out 2/4/2). 5e-3 @85min: train ~0.003 flat, infonce ~5.40 (barely off ln256=5.545), align crawling 0.13->0.32 but retrieval dead. 2e-3 @27min: train ~0.005, infonce ~5.30, same pattern. Lower lr descends the loss slightly more but produces NO discriminability. NOT a fork bug (review proved random-mode forward bit-exact, dx through B, transpose==backprop); genuine FA behavior, consistent w/ Bartunov 2018 (FA fails on hard tasks/transformer archs)
