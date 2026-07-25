@@ -178,7 +178,10 @@ instance top-1 retrieval reflects known fragility in small-pool retrieval metric
 al., 2020): the instance metric is cache- and scale-sensitive here (Sec. 2, Sec. 5), while the
 category metric is the stable phenomenon underneath.
 
-### References (venues/years to be verified in a final citation pass)
+### References (spot-verified 2026-07-24: the six highest-risk entries -- Millidge 2022 NC, Salvatori
+2022 NeurIPS [author list corrected], Salvatori 2023 survey arXiv:2308.07870, Song 2020 NeurIPS,
+Launay 2020 NeurIPS, Musgrave 2020 ECCV -- confirmed against source; the remainder still merit a
+final pass before submission)
 
 - Arpit, D., Jastrzębski, S., Ballas, N., et al. (2017). A Closer Look at Memorization in Deep
   Networks. ICML.
@@ -206,8 +209,8 @@ category metric is the stable phenomenon underneath.
   Natural Language Supervision (CLIP). ICML.
 - Rao, R. P. N., Ballard, D. H. (1999). Predictive coding in the visual cortex. Nature
   Neuroscience.
-- Salvatori, T., Song, Y., Lukasiewicz, T., Bogacz, R., Xu, Z. (2022). Learning on Arbitrary
-  Graph Topologies via Predictive Coding. NeurIPS.
+- Salvatori, T., Pinchetti, L., Millidge, B., Song, Y., Bao, T., Bogacz, R., Lukasiewicz, T.
+  (2022). Learning on Arbitrary Graph Topologies via Predictive Coding. NeurIPS.
 - Salvatori, T., Mali, A., Buckley, C. L., et al. (2023). Brain-Inspired Computational
   Intelligence via Predictive Coding. arXiv:2308.07870.
 - Scellier, B., Bengio, Y. (2017). Equilibrium Propagation: Bridging the Gap between
