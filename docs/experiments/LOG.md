@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-26 ***PCMAX BINDS with per-block InfoNCE (blocknce)*** -- the H1 answer taking shape (developing, not yet fit)
+- config or command, lead's run pcmax_bnce_ext_9642: PCMAX arm, alpha=0 (highway OFF), blocknce=1.0 (per-block InfoNCE on block outputs), AdamW lr5e-4 T8, 600ep, resumed from step 46500
+- result, train lat_retr CLIMBING/oscillating ~0.35-0.51 (chance 0.0005), align ~0.49 -- GENUINE binding, NOT collapse (collapse = align 1.0 / retrieval 0; here they track together ~0.5). Stable: F ~0.18, relaxF converging 39->12, move ~38%, no divergence. Epoch 213/600
+- takeaway, H1 CONFIRMED-IN-PROGRESS: PCMAX's non-fit was LOCAL DELIVERY of the coupling, and per-block contrastive delivery (negatives at every depth, bypassing the inert highway) makes the FULLY-LOCAL arm bind while preserving locality (per-block InfoNCE w/ detached partner = zero cross-layer backprop). This is exactly the design-note's proposed H1 test (docs/superpowers/specs/2026-07-25-pcmax-binding-diagnosis.md), independently built by the lead. CALIBRATION: NOT yet matched fit (~0.5 oscillating, may climb or plateau); HOLDING the category judgment until it reaches >=0.9 (matched fit is the methodology; 0.5-fit vs BP 0.98 would be confounded). Monitor alerts at the 0.9 crossing -> then run category_probe = the decisive transfer test that determines the paper's headline (PCMAX fits+transfers vs fits-but-flat)
+
 ### 2026-07-25 OLD-RECIPE DISSOCIATION IS SIZE-ROBUST to 700M (category metric, comparison ladder closed)
 - config or command, category_probe on cap_B vs e1l ckpts: 330M (9635) + 700M (9636), seed 0, same split; closes the comparison rungs 9545/9546
 - result, held-out i->t category prec@10 lift: BP 2.64 (156M) / 2.60 (330M) / 2.58 (700M); arm-B PC 1.30 / 1.22 / 1.28. BP holds ~2.6x systematic transfer, arm-B PC stays flat ~1.2-1.3x across a 4.5x capacity range. Instance metric (fragile) wandered 3/2/6 per 2000 = noise; the CATEGORY metric is steady = the real signal
