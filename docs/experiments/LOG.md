@@ -71,6 +71,10 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - OPS NOTE: monitor byalnx7ew FALSE-EXITED "all complete" during the Colby DNS outage recovery (transient empty squeue marked still-running jobs done); ground-truthed via squeue+sacct (9545/9546/9549/9550 still live), restarted as bzvmiyymm with sacct-confirmed terminal states. Cancelled FA 1e-3 (9551, pending) as its outcome is predetermined by the 2e-3 dead trajectory.
 - CATEGORY-METRIC REPRODUCTION (9544, the load-bearing check): on the anchor ckpt, PC i->t category prec@10 = 0.1054, lift 1.30x (money cell seed0 was 1.23x; 3-seed range 1.23/1.31/1.27) FLAT; BP (e1l_20k_audit seed0) per-category matches the paper seed-0 row exactly (cat 5.6x food 5.0x sports 3.8x dog 1.8x -> ~2.64x) SYSTEMATIC. => the driver reproduces the HEADLINE dissociation, not just the fit. The 5/2000 instance blip is confirmed irrelevant (category metric is the paper and it reproduces within seed noise)
 
+### 2026-07-26 settled-state readout on the BLOCKNCE ckpt (9640, lead-prompted gap): chance everywhere -- zero transfer holds under PC-NATIVE inference too
+- result, best settled-state eval retrieval 2/2000 across A/B x T{8,25} x init arms (geometry healthy, no collapse). The one arm with real train fit (124x chance) transfers nothing in the feedforward AND the bidirectional-inference readout
+- takeaway, the two-part locality law is now airtight in both readout senses: local credit fits ~100x slower and what it fits does not transfer, however you read the representation out
+
 ### 2026-07-26 BLOCKNCE LR wave lands the answer: local credit MEMORIZES SLOWLY (124x chance train fit, stable 150ep) with ZERO transfer (held-out 1/2000)
 - config or command, 9633 (BLOCKNCE=1.0 alpha=0, LR 5e-4, 150ep, 10h25) + 9634 (LR 2e-4, 150ep)
 - result, 9633: NO divergence, train lat_retr peak 0.0827 (~124/1500, 124x chance), final 0.0653; HELD-OUT 1/2000 = exact chance; unif healthy. 9634: same shape, slower (0.0047 at ep150, LR-scaled). The 1e-3 NaN was LR-marginal; the mechanism itself is stable at 5e-4
