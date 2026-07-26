@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-25 OLD-RECIPE DISSOCIATION IS SIZE-ROBUST to 700M (category metric, comparison ladder closed)
+- config or command, category_probe on cap_B vs e1l ckpts: 330M (9635) + 700M (9636), seed 0, same split; closes the comparison rungs 9545/9546
+- result, held-out i->t category prec@10 lift: BP 2.64 (156M) / 2.60 (330M) / 2.58 (700M); arm-B PC 1.30 / 1.22 / 1.28. BP holds ~2.6x systematic transfer, arm-B PC stays flat ~1.2-1.3x across a 4.5x capacity range. Instance metric (fragile) wandered 3/2/6 per 2000 = noise; the CATEGORY metric is steady = the real signal
+- takeaway, the category-transfer dissociation is NOT a 156M artifact -- it is a 3-point size-stable trend to 700M, which directly answers the paper's "single scale" limitation for the comparison ladder. CAVEATS: this is the OLD-RECIPE arm B (backprops energy through the encoder = comparison arm, not the fully-local PCMAX), seed 0 at 330M/700M. Emerging spectrum for the lead's framing: BP (full backprop) transfers; arm B (local-at-taps, encoder-backprop) fits-but-flat; PCMAX (fully local) does not even fit. Comparison ladder CLOSED at 700M; A100 3B/7.7B still not launched (deliberate, per the PCMAX pivot)
+
 ### 2026-07-25 A_CROSS=100 confirms: collapse is robust to cross-weight (both 10 and 100 collapse)
 - config or command, 9624 completed 15 epochs
 - result, align 1.000, train retrieval 0.0007 (chance), unif -0.00/0.00, held-out 0/2000 -- identical collapse to A_CROSS=10. Regression cross channel collapses regardless of strength
