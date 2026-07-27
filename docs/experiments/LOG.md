@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-27 PCMAX 9642 diverged AFTER a stable fit; extracted the pre-divergence ckpt, launched the judgment (9660)
+- config or command, 9642 completed: stable fit ~0.91-0.94 epochs 475-570, then DIVERGENCE at step 178529 (max|w|=nan), driver verdict DIVERGED. Final weight ckpt 5/94 NaN (corrupt); resume-state ckpt cap_state_*.npz is FINITE (0/103) = pre-divergence fitted model. Extracted clean weight ckpt (strip W__ prefix from the 93 state weight keys + copy __pcmax marker from a ref cap_PCMAX = 94 keys, all finite) -> cap_PCMAX_extracted_seed0.npz. Launched 9660: STEP1 mechanism_probe (VERIFY train lat_retr ~0.9, guards against a broken extraction reading as false-flat) then STEP2 category_probe (the transfer lift) vs e1l_seed0
+- result, PENDING (9660)
+- takeaway, PCMAX-blocknce is a late-onset-instability arm: it reaches matched fit (~0.93) but diverges ~epoch 570 (same instability family as PC-joint-2e-2 and LARS-40-80k in the paper's stability appendix). The decisive TRANSFER answer comes from 9660 on the extracted pre-divergence ckpt. CAVEATS locked: fit ~0.93 (vs BP 0.97), seed 0, from a pre-divergence state ckpt of a run that then diverged -> a PRELIMINARY decisive read; the lead should confirm with a divergence-safe rerun (save-best-fit ckpt / earlier FITSTOP / clip) before it is THE headline
+
 ### 2026-07-27 PCMAX-blocknce reaches a STABLE fit ~0.91 (H1 confirmed: local delivery was the problem)
 - config or command, 9642 (pcmax_bnceF_5e-4) epoch 482/600, still running; last 8 fitgate epochs all 0.89-0.94 (mean ~0.91, align ~0.62), stable
 - result, fully-local PCMAX (per-block InfoNCE, highway OFF, zero cross-layer backprop) STABLY fits the coupling at ~0.91. This is the H1 answer: PCMAX's non-fit was LOCAL DELIVERY, and per-block contrastive coupling (negatives at every depth) solves it while preserving locality. Exactly the design-note prediction, built by the lead
