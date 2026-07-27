@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-27 PCMAX-blocknce reaches a STABLE fit ~0.91 (H1 confirmed: local delivery was the problem)
+- config or command, 9642 (pcmax_bnceF_5e-4) epoch 482/600, still running; last 8 fitgate epochs all 0.89-0.94 (mean ~0.91, align ~0.62), stable
+- result, fully-local PCMAX (per-block InfoNCE, highway OFF, zero cross-layer backprop) STABLY fits the coupling at ~0.91. This is the H1 answer: PCMAX's non-fit was LOCAL DELIVERY, and per-block contrastive coupling (negatives at every depth) solves it while preserving locality. Exactly the design-note prediction, built by the lead
+- takeaway, JUDGMENT PLAN: this run saves a weight ckpt only at completion/FITSTOP (0.99, not hit) -- currently only resume-state ckpts exist, and all cap_PCMAX_*.npz on disk are from the EARLIER FAILED highway variants (full_a003/sym/t16), NOT this binding run. So NOT fishing weights from the resume ckpt for the paper's headline number; waiting for the clean completion ckpt (~few h, monitor triggers), then run category_probe = the decisive transfer test. CAVEATS to carry: fit ~0.91 vs BP ~0.97 (small gap, does not confound the qualitative answer; lead's call whether to want a stably->=0.95 config), seed 0 only. Category judgment QUEUED for completion
+
 ### 2026-07-27 PCMAX-blocknce binds STRONGLY but UNSTABLY (~0.83 mean, oscillates 0.69-0.92), not clean matched fit yet
 - config or command, 9642 (pcmax_bnce_ext) still running, epoch 365/600, 15h; my monitor's 0.9-crossing alert fired on a single spike (epoch 364=0.916, epoch 365=0.793)
 - result, train retrieval OSCILLATES 0.69-0.92 epoch-to-epoch, mean ~0.83, align ~0.59, stable training (F~0.18, no divergence). FITSTOP (0.99) NOT triggered -> no fit-triggered weight ckpt from this run yet (only resume-state ckpts). Still trending up (was ~0.4 at ep200)
