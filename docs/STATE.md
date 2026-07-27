@@ -1,4 +1,19 @@
-# State (updated 2026-07-25, PCMAX Phase 1 COMPLETE)
+# State (updated 2026-07-27)
+
+## UPDATE (2026-07-27, paper-side collaborator): PCMAX now BINDS and STILL does not transfer -- supersedes "never binds"
+The 2026-07-25 ALERT below said fully-local PCMAX "never binds at any delivered strength." That is now
+SUPERSEDED by the per-block-InfoNCE fix (blocknce, alpha=0, highway off = the design-note's H1 test in
+docs/superpowers/specs/2026-07-25-pcmax-binding-diagnosis.md). Run 9642 reached a MATCHED FIT (cumulative
+train lat_retr 0.966 vs BP 0.955) then diverged ~epoch 570 (late-onset instability, stability-appendix
+material). On the verified-fitted pre-divergence ckpt (job 9660): held-out category lift PCMAX 1.11x FLAT
+vs BP(E1L) 2.64x, and optimizer-matched vs Bmu 2.27x (both muP+AdamW -> isolates LOCALITY, controlling the
+confound the ALERT flags). Mechanism: PCMAX memorizes in tap0 (train 0.9915), zero category structure
+held-out OR train. => the reframe's "genuinely-local fails" leg is now its STRONGEST form: not a fit
+failure (tune-harder-vulnerable) but a matched-fit TRANSFER failure of a real zero-cross-layer-backprop
+rule. CAVEATS: seed 0; ckpt is the pre-divergence snapshot of a diverged run -> lead should confirm with a
+divergence-safe rerun (save-best-fit / earlier stop / clip) + seeds 1,2. Details LOG 2026-07-27.
+
+## (superseded header) State as of 2026-07-25, PCMAX Phase 1
 
 ## ALERT (2026-07-25): the category-transfer headline is optimizer/parameterization-confounded
 Same arm-B hybrid recipe, same split, same BP reference (E1L 2.64x): baseline+LARS = 1.30x (the
