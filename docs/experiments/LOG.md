@@ -10,6 +10,11 @@ Newest on top. One entry per run or outcome. Never edit past entries.
 - takeaway, <one line>
 ```
 
+### 2026-07-27 PCMAX-blocknce binds STRONGLY but UNSTABLY (~0.83 mean, oscillates 0.69-0.92), not clean matched fit yet
+- config or command, 9642 (pcmax_bnce_ext) still running, epoch 365/600, 15h; my monitor's 0.9-crossing alert fired on a single spike (epoch 364=0.916, epoch 365=0.793)
+- result, train retrieval OSCILLATES 0.69-0.92 epoch-to-epoch, mean ~0.83, align ~0.59, stable training (F~0.18, no divergence). FITSTOP (0.99) NOT triggered -> no fit-triggered weight ckpt from this run yet (only resume-state ckpts). Still trending up (was ~0.4 at ep200)
+- takeaway, DID NOT run the category judgment: 0.83-oscillating vs BP 0.98-stable is NOT matched fit, would be confounded. Honest read: per-block InfoNCE makes fully-local PCMAX bind SUBSTANTIALLY but it cannot hold a STABLE matched fit the way backprop does -- the oscillation is itself a characterizable local-rule instability. May still climb to stable fit (ep365/600) or plateau as partial binding. Monitor re-armed (bft1mcywq) to fire on a STABLE fit (min of last 5 epochs >=0.9) or completion, not a spike. METHODOLOGY Q for the lead: judge transfer at best-stable-fit (~0.83, with a fit-gap caveat) or hold for a stably->=0.95 config? Category judgment stays QUEUED
+
 ### 2026-07-26 ***PCMAX BINDS with per-block InfoNCE (blocknce)*** -- the H1 answer taking shape (developing, not yet fit)
 - config or command, lead's run pcmax_bnce_ext_9642: PCMAX arm, alpha=0 (highway OFF), blocknce=1.0 (per-block InfoNCE on block outputs), AdamW lr5e-4 T8, 600ep, resumed from step 46500
 - result, train lat_retr CLIMBING/oscillating ~0.35-0.51 (chance 0.0005), align ~0.49 -- GENUINE binding, NOT collapse (collapse = align 1.0 / retrieval 0; here they track together ~0.5). Stable: F ~0.18, relaxF converging 39->12, move ~38%, no divergence. Epoch 213/600
